@@ -1,3 +1,4 @@
+import { installUpdates } from '/pwa-update.js';
 /* BP Digitizer — local-first PWA.
    Readings live in IndexedDB and never leave the device unless the user
    explicitly turns on encrypted backup. The app is fully usable with no
@@ -1553,21 +1554,9 @@ async function boot() {
       offerCode(code);
     }).catch(() => {});
   }
-  if ('serviceWorker' in navigator) {
-    try {
-      // updateViaCache:'none' keeps the browser's HTTP cache out of the
-      // worker's own update check, and update() asks on every load. Without
-      // this a stale worker can serve an old build indefinitely, which makes
-      // any deployed fix look like it never shipped.
-      const reg = await navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' });
-      reg.update().catch(() => {});
-      let reloading = false;
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (reloading) return;      // controllerchange can fire more than once
-        reloading = true;
-        location.reload();
-      });
-    } catch { /* the app works offline without one */ }
-  }
+  installUpdates({
+    appName: 'wBP Digitizer',
+    toast: (message) => toast(message)
+  });
 }
 boot();
