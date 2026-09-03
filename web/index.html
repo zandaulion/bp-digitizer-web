@@ -26,33 +26,37 @@
 
   <!-- dashboard ----------------------------------------------------------->
   <section class="view" id="view-dashboard">
-    <header class="appbar">
-      <h1 id="hero-title">wBP Digitizer</h1>
-      <div class="appbar-actions" id="appbar-actions"></div>
-    </header>
+    <div class="dashboard-pinned" id="dashboard-pinned">
+      <header class="appbar">
+        <h1 id="hero-title">wBP Digitizer</h1>
+        <div class="appbar-actions" id="appbar-actions"></div>
+      </header>
 
-    <!-- Only when running in a browser; see setupInstallBanner. -->
-    <div class="install-banner" id="install-banner" hidden>
-      <span id="install-text"></span>
-      <button class="btn" id="install-go" hidden></button>
-      <button class="icon-btn" id="install-close" aria-label="×">×</button>
+      <!-- Only when running in a browser; see setupInstallBanner. -->
+      <div class="install-banner" id="install-banner" hidden>
+        <span id="install-text"></span>
+        <button class="btn" id="install-go" hidden></button>
+        <button class="icon-btn" id="install-close" aria-label="×">×</button>
+      </div>
+
+      <div class="chips" id="range-chips"></div>
+      <div class="seg" id="mode-chips"></div>
+      <div class="chart-wrap">
+        <svg id="chart" role="img"></svg>
+        <div class="readout" id="readout" hidden></div>
+      </div>
+      <div class="legend" id="legend"></div>
+
+      <hr class="divider">
     </div>
 
-    <div class="chips" id="range-chips"></div>
-    <div class="seg" id="mode-chips"></div>
-    <div class="chart-wrap">
-      <svg id="chart" role="img"></svg>
-      <div class="readout" id="readout" hidden></div>
+    <div class="dashboard-scroll" id="dashboard-scroll">
+      <div class="card tonal" id="insights-card" hidden></div>
+      <div class="card tonal" id="risk-card" hidden></div>
+
+      <p class="empty" id="history-empty" hidden></p>
+      <div class="list" id="history"></div>
     </div>
-    <div class="legend" id="legend"></div>
-
-    <hr class="divider">
-
-    <div class="card tonal" id="insights-card" hidden></div>
-    <div class="card tonal" id="risk-card" hidden></div>
-
-    <p class="empty" id="history-empty" hidden></p>
-    <div class="list" id="history"></div>
   </section>
 
   <!-- add reading --------------------------------------------------------->

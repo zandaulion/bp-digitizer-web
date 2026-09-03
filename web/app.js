@@ -1368,6 +1368,9 @@ function renderAppbar() {
       applyStatic(); renderAppbar(); renderSettings(); refresh(); updateServerUi();
     }));
   $('ab-settings').addEventListener('click', () => { renderSettings(); show('settings'); });
+  $('hero-title')?.addEventListener('click', () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
   // Rebuilding the bar drops the lock class, so restore it from what we know.
   updateReminderButton();
 }
