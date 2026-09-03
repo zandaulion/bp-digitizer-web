@@ -10,6 +10,8 @@ const SHELL = ['/', '/index.html', '/app.css', '/app.js', '/db.js', '/bp.js', '/
                // leaves Android drawing the Chrome logo instead.
                '/icons/badge-96.png'];
 
+importScripts('/sw-update.js');
+
 self.addEventListener('install', (e) => {
   e.waitUntil((async () => {
     const c = await caches.open(CACHE);
@@ -28,6 +30,9 @@ self.addEventListener('activate', (e) => {
     await Promise.all(keys.filter((k) => k.startsWith('bp-shell-') && k !== CACHE)
                           .map((k) => caches.delete(k)));
     await self.clients.claim();
+    // Tell the open windows rather than reloading them from under whatever
+    // the person was doing. Each page decides when it is safe.
+    await announceUpdate();
   })());
 });
 
