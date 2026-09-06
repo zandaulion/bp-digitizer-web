@@ -73,7 +73,7 @@
   "dashboard_export_json": "JSONでエクスポート",
   "dashboard_export_pdf": "印刷",
   "dashboard_export_pdf_building": "PDFを作成しています…",
-  "dashboard_export_pdf_file": "PDFをダウンロード（印刷ダイアログなし）",
+  "dashboard_export_pdf_file": "PDFをダウンロード",
   "dashboard_reading_pulse_format": " · {0} bpm",
   "dashboard_smooth_bursts": "Avg",
   "dashboard_snack_deleted": "削除しました",

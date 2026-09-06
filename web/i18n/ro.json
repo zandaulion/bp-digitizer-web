@@ -73,7 +73,7 @@
   "dashboard_export_json": "Exportă ca JSON",
   "dashboard_export_pdf": "Printează",
   "dashboard_export_pdf_building": "Se creează PDF-ul…",
-  "dashboard_export_pdf_file": "Descarcă PDF (fără dialog de tipărire)",
+  "dashboard_export_pdf_file": "Descarcă PDF",
   "dashboard_reading_pulse_format": " · {0} bpm",
   "dashboard_smooth_bursts": "Avg",
   "dashboard_snack_deleted": "Măsurătoare ștearsă",

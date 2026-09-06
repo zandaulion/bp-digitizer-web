@@ -73,7 +73,7 @@
   "dashboard_export_json": "Exportar como JSON",
   "dashboard_export_pdf": "Imprimir",
   "dashboard_export_pdf_building": "Creando el PDF…",
-  "dashboard_export_pdf_file": "Descargar PDF (sin diálogo de impresión)",
+  "dashboard_export_pdf_file": "Descargar PDF",
   "dashboard_reading_pulse_format": " · {0} ppm",
   "dashboard_smooth_bursts": "Avg",
   "dashboard_snack_deleted": "Lectura eliminada",

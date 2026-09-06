@@ -73,7 +73,7 @@
   "dashboard_export_json": "Експорт у JSON",
   "dashboard_export_pdf": "Друк",
   "dashboard_export_pdf_building": "Створення PDF…",
-  "dashboard_export_pdf_file": "Завантажити PDF (без діалогу друку)",
+  "dashboard_export_pdf_file": "Завантажити PDF",
   "dashboard_reading_pulse_format": " · {0} уд/хв",
   "dashboard_smooth_bursts": "Avg",
   "dashboard_snack_deleted": "Вимір видалено",

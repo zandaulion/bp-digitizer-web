@@ -73,7 +73,7 @@
   "dashboard_export_json": "导出为 JSON",
   "dashboard_export_pdf": "打印",
   "dashboard_export_pdf_building": "正在生成 PDF…",
-  "dashboard_export_pdf_file": "下载 PDF（无需打印对话框）",
+  "dashboard_export_pdf_file": "下载 PDF",
   "dashboard_reading_pulse_format": " · {0} 次/分",
   "dashboard_smooth_bursts": "Avg",
   "dashboard_snack_deleted": "已删除",

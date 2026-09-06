@@ -73,7 +73,7 @@
   "dashboard_export_json": "Als JSON exportieren",
   "dashboard_export_pdf": "Drucken",
   "dashboard_export_pdf_building": "PDF wird erstellt…",
-  "dashboard_export_pdf_file": "PDF herunterladen (ohne Druckdialog)",
+  "dashboard_export_pdf_file": "PDF herunterladen",
   "dashboard_reading_pulse_format": " · {0} bpm",
   "dashboard_smooth_bursts": "Avg",
   "dashboard_snack_deleted": "Messung gelöscht",

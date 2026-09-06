@@ -73,7 +73,7 @@
   "dashboard_export_json": "JSON के रूप में निर्यात करें",
   "dashboard_export_pdf": "प्रिंट करें",
   "dashboard_export_pdf_building": "PDF बनाया जा रहा है…",
-  "dashboard_export_pdf_file": "PDF डाउनलोड करें (प्रिंट डायलॉग बिना)",
+  "dashboard_export_pdf_file": "PDF डाउनलोड करें",
   "dashboard_reading_pulse_format": " · {0} बीपीएम",
   "dashboard_smooth_bursts": "Avg",
   "dashboard_snack_deleted": "रीडिंग हटाई गई",

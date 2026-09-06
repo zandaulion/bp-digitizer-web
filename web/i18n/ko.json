@@ -73,7 +73,7 @@
   "dashboard_export_json": "JSON으로 내보내기",
   "dashboard_export_pdf": "인쇄",
   "dashboard_export_pdf_building": "PDF를 만드는 중…",
-  "dashboard_export_pdf_file": "PDF 내려받기(인쇄 대화상자 없이)",
+  "dashboard_export_pdf_file": "PDF 내려받기",
   "dashboard_reading_pulse_format": " · {0} bpm",
   "dashboard_smooth_bursts": "Avg",
   "dashboard_snack_deleted": "삭제됨",
