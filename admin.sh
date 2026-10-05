@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Invites and devices for BP Digitizer. Talks to the tailnet-only listener,
-# which is what authorises admin -- there is no password; reaching that
-# listener is the credential. Will not work from off the tailnet.
+# which adds the X-Admin-Token header the server checks; this script holds no
+# credential itself. Will not work from off the tailnet.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

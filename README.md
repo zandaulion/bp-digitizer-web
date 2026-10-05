@@ -63,16 +63,18 @@ There is a graphical console too — [pwa-invite-console](https://github.com/zan
 app behind this invite mechanism, so it belongs to none of them. Adding one is
 an entry in its `apps.json`; the endpoints it expects are listed in its README.
 
-**Neither carries a credential.** There is no admin password: being able to
-reach the listener is the authorisation. Put the admin API on a private surface
-only, and inject the header there:
+**Neither carries a credential.** Admin requests must carry `X-Admin-Token`
+matching the server's `ADMIN_TOKEN`, and the proxy adds it, not the client.
+Put `ADMIN_TOKEN=<random secret>` in `~/.config/bp/bp.env` (e.g. from
+`openssl rand -hex 32`), keep that file private, and inject the header on a
+private surface only:
 
 ```caddyfile
 # private surface: tailnet, VPN, LAN, whatever only you can reach
 handle /bp/api/* {
     uri strip_prefix /bp
     reverse_proxy 127.0.0.1:8094 {
-        header_up X-Admin 1        # this is what authorises admin
+        header_up X-Admin-Token <same secret as ADMIN_TOKEN>
     }
 }
 
@@ -80,13 +82,13 @@ handle /bp/api/* {
 handle /api/admin/* { respond 404 }
 handle /api/* {
     reverse_proxy 127.0.0.1:8094 {
-        header_up -X-Admin         # strip whatever a client sends
+        header_up -X-Admin-Token   # strip whatever a client sends
     }
 }
 ```
 
-Forget the `-X-Admin` strip and anyone can set the header themselves, so both
-halves matter.
+Without `ADMIN_TOKEN` the admin API refuses everything (404), so a forgotten
+setting fails closed rather than open.
 
 Codes are readable only while an invite can still register something:
 redemption wipes the plaintext from the database, leaving the hash. If you
