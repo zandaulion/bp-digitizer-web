@@ -1,206 +1,118 @@
 # wBP Digitizer — web
 
-Log, chart and export blood pressure readings. **Local-first**: readings live in
-your browser's IndexedDB and are never sent anywhere.
+A local-first progressive web app for recording, charting and exporting blood
+pressure readings. Readings live in the browser's IndexedDB. Camera recognition
+runs locally in a browser worker; photos and readings are not uploaded.
 
-A web companion to the [Android app](https://github.com/zandaulion/BloodPressureMonitor),
-sharing its clinical logic and its translations. It exists because publishing a
-health app to Google Play requires a company account — so the app cannot be
-distributed there, and asking non-technical friends to sideload an APK is worse
-than sending them a link.
+The app has no application backend, accounts, invitation codes, API keys or
+usage quotas. Static HTTPS hosting is needed for installation and updates. Once
+the service worker has cached the app, OCR runtime and models, normal use works
+offline.
 
-## It runs with no server
+## Run locally
 
-Open the page, add readings, see charts, export a file. That is the whole app.
-There is **no build step, no framework, and no backend requirement** — copy
-`web/` onto any static host and you are done.
-
-```bash
+```sh
 git clone https://github.com/zandaulion/bp-digitizer-web
 cd bp-digitizer-web
-python3 -m http.server -d web 8080     # or any static host
+python3 -m http.server -d web 8080
 ```
 
-`deploy.sh` copies `web/` to a directory and stamps a build hash into the
-asset URLs, so a deploy reaches installed apps instead of waiting out their
-caches. Serving `web/` raw works exactly the same, minus that cache-busting —
-you would clear the service worker by hand after each change.
+Open <http://127.0.0.1:8080/>. Camera capture in deployment requires HTTPS;
+localhost is treated as a secure development context.
 
-An optional server adds three things, each of which you can decline:
+There is no build step. `deploy.sh` copies `web/` to `/var/www/bp` by default,
+stamps a content-derived build version and versions module imports so an
+installed PWA cannot mix old and new code.
 
-| Optional | What it needs | What it gives |
-|---|---|---|
-| Camera OCR | a Gemini API key, held server-side | reads SYS/DIA/pulse from a photo of a monitor |
-| Encrypted backup | somewhere to store an opaque blob | recovery if the browser's storage is cleared |
-| Reminders | web push | a nudge at the times you choose |
-
-Server features are gated by a code you generate (`./admin.sh invite "Ana"`),
-because OCR costs money and backups cost storage. **The gate covers only those
-three features** — the app itself never asks for a code. Without one the camera
-and bell wear a small lock and lead to the screen where a code goes, rather
-than hiding and leaving the feature undiscoverable.
-
-One code registers one device, and stays redeemable for seven days. Within an
-hour of its first use it re-binds the *same* device instead of registering
-another, because chat apps open links in their own browser, whose cookies the
-installed PWA cannot read — the realistic flow is redeem in the viewer, install
-properly, redeem again. That window is absolute rather than sliding, so a
-forwarded link is not a week-long open door. Redemption is the one endpoint
-that must answer before it knows who is asking, so it is rate limited per
-address, with a global ceiling behind it.
-
-## Managing invites and devices
-
-```bash
-./admin.sh invite "Ana"     # create one; prints the code and a link
-./admin.sh invites          # list, with codes for the ones still usable
-./admin.sh devices          # list, with last-seen and whether push is set up
-./admin.sh revoke 3         # lock a device out; unrevoke puts it back
-./admin.sh forget 3         # delete it, and its backup and reminders with it
+```sh
+./deploy.sh
+# or
+DEST=/another/static/root ./deploy.sh
 ```
 
-There is a graphical console too — [pwa-invite-console](https://github.com/zandaulion/pwa-invite-console) — which fronts every
-app behind this invite mechanism, so it belongs to none of them. Adding one is
-an entry in its `apps.json`; the endpoints it expects are listed in its README.
+## Local OCR
 
-**Neither carries a credential.** Admin requests must carry `X-Admin-Token`
-matching the server's `ADMIN_TOKEN`, and the proxy adds it, not the client.
-Put `ADMIN_TOKEN=<random secret>` in `~/.config/bp/bp.env` (e.g. from
-`openssl rand -hex 32`), keep that file private, and inject the header on a
-private surface only:
+The camera reader is integrated from
+[Hearth BP monitor OCR](https://github.com/zandaulion/hearth-bp-ocr) at source
+revision `10bd461373e4f5d2de0eee63f475c4c1cae22b34`. It uses ONNX Runtime Web
+1.30.0, a detector and a digit recognizer in a module worker. The matching
+models, thresholds and runtime are shipped under `web/hearth/` and cached as a
+single release.
 
-```caddyfile
-# private surface: tailnet, VPN, LAN, whatever only you can reach
-handle /bp/api/* {
-    uri strip_prefix /bp
-    reverse_proxy 127.0.0.1:8094 {
-        header_up X-Admin-Token <same secret as ADMIN_TOKEN>
-    }
-}
+The reader supports upright, common three-row SYS/DIA/pulse displays. It tries
+the full image, conservative central crops and an adaptive lighting-normalized
+crop. A result is a candidate, a reading needing extra review, or a refusal.
+The app always opens editable fields and requires the user to save explicitly;
+it never guesses missing values or stores an OCR result automatically.
 
-# public surface
-handle /api/admin/* { respond 404 }
-handle /api/* {
-    reverse_proxy 127.0.0.1:8094 {
-        header_up -X-Admin-Token   # strip whatever a client sends
-    }
-}
-```
+More than 90% precision on new real-world captures has not been established.
+Every value must be checked against the monitor. Detection scores are not
+calibrated correctness probabilities.
 
-Without `ADMIN_TOKEN` the admin API refuses everything (404), so a forgotten
-setting fails closed rather than open.
+The two models total about 10.9 MB. The first online load downloads those models
+and the WebAssembly runtime; later reads can run offline.
 
-Codes are readable only while an invite can still register something:
-redemption wipes the plaintext from the database, leaving the hash. If you
-lose a code before sending it, revoke it and make another.
+## On-device backup
 
-A `?code=` link is only redeemed when the app is running as an installed PWA.
-Opened in a browser tab it hands the code over instead — shown, copyable, with
-a note to install first, and a way to redeem in the tab anyway if that is
-really what you meant. An installed app keeps its own storage, so redeeming in
-a tab registers the tab and leaves the app unlinked, having spent a single-use
-code. Detected with `display-mode: standalone`, and `navigator.standalone` on
-iOS.
+The live database is browser storage, so clearing site data or uninstalling the
+PWA can remove it. Settings therefore offers an encrypted backup file:
 
-The server never sees a reading in the clear. Backups are encrypted in the
-browser with AES-GCM under a key derived from your passphrase by PBKDF2
-(310,000 iterations); the server stores ciphertext, a salt and an IV, and
-cannot recover your data if you forget the passphrase — which is the point.
-Verified: the stored blob contains no plaintext field names, and a wrong
-passphrase is rejected by AES-GCM's own authentication rather than silently
-producing garbage.
+1. **Back up now** serializes readings and the profile.
+2. The browser derives an AES-GCM key from the passphrase with PBKDF2-SHA-256
+   (310,000 iterations).
+3. It downloads a dated `.hbp` file. Neither the passphrase nor key is stored.
+4. **Restore** decrypts a selected file locally and timestamp-deduplicates its
+   readings before import.
 
-The OCR daily limit lives in the database, not in `localStorage` as the
-Android app's does — on the web that counter would be editable in devtools,
-and the calls cost real money.
+Keep the passphrase separately; there is no account or server that can recover
+it. A file in Downloads protects against cleared browser storage, but not loss
+of the entire device. Users can copy the encrypted file to their own computer,
+cloud drive or other storage without involving an application-operated server.
 
-## What it does
+JSON, CSV and PDF exports remain available for interoperability. The `.hbp`
+format is the privacy-preserving recovery format.
 
-- Manual entry with sliders seeded from your last reading
-- AHA zones (Normal / Elevated / Stage 1 / Stage 2 / Crisis), MAP and pulse pressure
-- Trend chart (systolic + diastolic, 120/80 reference lines) and a
-  systolic-vs-diastolic scatter. Both axes follow the data: the trend pads and
-  snaps outward once a day of history exists, keeping the fixed 40–180 frame
-  below that so a 3 mmHg wobble cannot fill the viewport. Scatter dots are
-  coloured by recency, not severity — position against the guides already says
-  how high a reading is
-- 7 / 30 / 90 day and all-time ranges
-- Burst averaging: readings taken back to back in one sitting collapse to a
-  single point, which is what AHA/ACC guidance asks for. On by default; the
-  history list and every export still show each reading
-- Insights computed on the device — morning versus evening, 30-day trend, time
-  in range, healthy streaks, weekday versus weekend, and which context tag
-  moves your numbers most
-- Risk assessment from your health profile — a port of the app's
-  Framingham/ACC-AHA-derived scoring
-- Context tags, notes
-- CSV and JSON export, JSON/CSV import with timestamp deduplication
-- **PDF report** — overview page (zone donut, systolic/diastolic scatter), a
-  chart page per active range with numbered tag callouts and a stats bar, then
-  the last 30 days as a table. Two ways out: through the browser's print
-  dialog, which gives selectable, searchable text and fills whatever paper is
-  chosen, or as a direct download that skips the dialog at the cost of pages
-  being pictures
-- **12 languages**, carried over from the Android app rather than re-translated
-- Installs to the home screen; works offline. A banner offers this where it
-  can be acted on — Chrome gets a button wired to `beforeinstallprompt`, iOS
-  gets the Share-menu gesture spelled out, and a desktop that can do neither
-  is not told about it. The offer returns each launch while the app is still
-  in a browser; dismissing it is per session
+## Features
 
-## What it deliberately does not do
+- Manual entry with sliders, numeric fields and accelerated press-and-hold steps
+- Local camera OCR with editable candidate/review results and safe refusal
+- AHA zones, mean arterial pressure and pulse pressure
+- Trend and SYS/DIA scatter charts over 7, 30, 90 days or all readings
+- Optional burst averaging for chart display
+- Tags, notes, profile metrics, BMI and cardiovascular risk estimates
+- JSON/CSV import and export, printable and downloadable PDF reports
+- Encrypted on-device backup and restore
+- Twelve interface languages and RTL support for Arabic
+- Offline installation and automatic service-worker update handling
 
-Some things the Android app does cannot be done on the web, and pretending
-otherwise would be worse than saying so:
+The app does not provide medical diagnosis. Its calculations and OCR output are
+informational and must not replace professional medical advice.
 
-- **Health Connect sync.** No web equivalent exists.
-- **Exact offline reminders.** The web has no scheduled local notification API
-  — `Notification Triggers` was proposed and never shipped. Reminders here are
-  server-sent push: they need network at the moment they fire, and on iOS they
-  only work from an installed PWA.
-- **Selectable text in the *downloaded* PDF.** Writing PDF bytes in the
-  browser means shipping fonts, and this app speaks twelve languages including
-  Arabic, Devanagari and CJK — megabytes of glyphs for a local-first app. The
-  download rasterises instead, so its text is pixels. The print route has real
-  text; it just needs one more tap.
+## Source layout
 
-If you need those, use the Android app.
-
-## Not medical advice
-
-This is a logging tool. The risk assessment is a simplified adaptation of
-published scoring and is informational only. It does not diagnose anything and
-does not replace a clinician.
-
-## Layout
-
-```
+```text
 web/
-  index.html        the whole UI
-  app.js            views, charts, entry, gestures, export
-  bp.js             clinical logic — zones, MAP, BMI, risk scoring, enums
-  insights.js       the patterns surfaced on the dashboard
-  aggregate.js      burst averaging
-  pdf.js            the printable report, and the rasterised download
-  palette.js        chart colours shared by the dashboard and the report
-  db.js             IndexedDB storage
-  server.js         the optional server's client — every call may fail
-  icons.js          inlined Material paths
-  i18n.js           locale loading
-  i18n/*.json       12 catalogues, converted from the Android strings.xml
-  sw.js             offline shell
-server/             the optional server: OCR proxy, backup, push reminders
+  app.js              views, charts, entry, local OCR flow and backup UI
+  backup.js           portable PBKDF2/AES-GCM backup envelope
+  db.js               IndexedDB readings and preferences
+  bp.js               zones, MAP, BMI and risk calculations
+  aggregate.js        burst averaging
+  insights.js         dashboard observations
+  pdf.js              printable and rasterized PDF reports
+  hearth/             local worker, models, ONNX runtime and notices
+  i18n/               translated catalogues
+  sw.js               offline shell and OCR asset cache
 bin/
   version-imports.py  stamps the build hash into ES module imports
-tools/
-  convert-strings.py  regenerates i18n/ from the Android repo
+deploy.sh             static-file deployment
 ```
 
-`bp.js`, `insights.js` and `aggregate.js` have no DOM or storage dependencies,
-so they can be diffed against the Kotlin they were ported from and tested on
-their own.
+## Licensing
 
-`version-imports.py` exists because `import './x.js'` resolves to an
-*unversioned* URL: only the entry point carries the build hash, so a new
-`app.js` would keep importing a week-old `server.js` from cache. That took
-several days to find once.
+The original wBP Digitizer code is GPL-3.0. The integrated Hearth OCR source,
+model weights and generated assets are AGPL-3.0-only and retain their notices in
+`web/hearth/LICENSE` and `web/hearth/NOTICE`. ONNX Runtime retains its MIT
+license and notices under `web/hearth/vendor/`.
+
+See the upstream Hearth repository for model provenance, evaluation limitations,
+training-data attribution and the complete integration documentation.

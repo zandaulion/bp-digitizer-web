@@ -4,18 +4,27 @@
 const VERSION = '__BUILD_VERSION__';
 const CACHE = 'bp-shell-' + VERSION;
 const SHELL = ['/', '/index.html', '/app.css', '/app.js', '/db.js', '/bp.js', '/i18n.js',
+               '/backup.js', '/aggregate.js', '/icons.js', '/insights.js', '/palette.js',
+               '/pdf.js', '/pwa-update.js', '/sw-update.js',
                '/manifest.webmanifest', '/icons/icon.svg', '/icons/icon-192.png',
-               '/icons/icon-512.png',
-               // Precached: a push can arrive offline, and a badge that 404s
-               // leaves Android drawing the Chrome logo instead.
-               '/icons/badge-96.png'];
+               '/icons/icon-512.png', '/icons/maskable-512.png',
+               // Local OCR: implementation, pinned runtime and matching models.
+               '/hearth/reader.js', '/hearth/inference-worker.js',
+               '/hearth/reading.js', '/hearth/crop-fallback.js',
+               '/hearth/adaptive-crop.js',
+               '/hearth/vendor/ort.wasm.min.mjs',
+               '/hearth/vendor/ort-wasm-simd-threaded.mjs',
+               '/hearth/vendor/ort-wasm-simd-threaded.wasm',
+               '/hearth/models/bp-detector.onnx',
+               '/hearth/models/bp-digits.onnx',
+               '/hearth/models/config.json'];
 
 importScripts('/sw-update.js');
 
 self.addEventListener('install', (e) => {
   e.waitUntil((async () => {
     const c = await caches.open(CACHE);
-    await c.addAll(SHELL);
+    await c.addAll(SHELL.map((url) => new Request(url, { cache: 'reload' })));
     // Locales are fetched on demand; pre-cache only the ones likely needed.
     await c.addAll(['/i18n/en.json']).catch(() => {});
     // Take over immediately; combined with controllerchange in the page this
@@ -62,7 +71,11 @@ async function networkFirst(req, cache) {
 }
 
 async function cacheFirst(req, cache) {
-  const hit = await cache.match(req);
+  // The install cache stores canonical paths, while deployed HTML and module
+  // imports carry ?v=<build>. Falling back to the canonical entry makes the
+  // very first installed load work offline, before a controlled page has had
+  // a chance to request and cache every versioned URL.
+  const hit = await cache.match(req) || await cache.match(new URL(req.url).pathname);
   if (hit) return hit;
   const res = await fetch(req);
   if (res.ok) cache.put(req, res.clone());
@@ -74,36 +87,8 @@ self.addEventListener('fetch', (e) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
-  if (url.pathname.startsWith('/api/')) return;      // never cache the server
   e.respondWith((async () => {
     const cache = await caches.open(CACHE);
     return (immutable(url) ? cacheFirst : networkFirst)(req, cache);
-  })());
-});
-
-/* Reminders arrive as push when the optional server is configured. With no
-   server the app still works; it simply cannot prompt you. */
-self.addEventListener('push', (e) => {
-  let d = {};
-  try { d = e.data ? e.data.json() : {}; } catch (err) { d = {}; }
-  e.waitUntil(self.registration.showNotification(d.title || 'BP Digitizer', {
-    body: d.body || '', tag: d.tag || 'reminder', renotify: true,
-    icon: '/icons/icon-192.png', badge: '/icons/badge-96.png', data: d,
-    actions: [{ action: 'measure', title: d.action_measure || 'Measure' },
-              { action: 'snooze', title: d.action_snooze || 'Snooze 15 min' }],
-  }));
-});
-
-self.addEventListener('notificationclick', (e) => {
-  e.notification.close();
-  const target = e.action === 'measure' ? '/?add=1' : '/';
-  e.waitUntil((async () => {
-    if (e.action === 'snooze') {
-      await fetch('/api/reminders/snooze', { method: 'POST' }).catch(() => {});
-      return;
-    }
-    const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    for (const c of all) if (new URL(c.url).origin === self.location.origin) return c.focus();
-    return self.clients.openWindow(target);
   })());
 });

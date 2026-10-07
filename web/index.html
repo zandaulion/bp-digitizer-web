@@ -83,11 +83,11 @@
       <div class="slider-row">
         <span class="slider-label"><span id="lbl-sys"></span>
           <input class="val-input" id="val-sys" type="number" inputmode="numeric"
-                 min="60" max="250" step="1" value="120"></span>
+                 min="50" max="280" step="1" value="120"></span>
         <div class="stepper">
           <button type="button" class="step" data-step="-1" data-for="in-sys"
                   aria-label="-1">&minus;</button>
-          <input type="range" id="in-sys" min="60" max="250" step="1" value="120">
+          <input type="range" id="in-sys" min="50" max="280" step="1" value="120">
           <button type="button" class="step" data-step="1" data-for="in-sys"
                   aria-label="+1">+</button>
         </div>
@@ -95,11 +95,11 @@
       <div class="slider-row">
         <span class="slider-label"><span id="lbl-dia"></span>
           <input class="val-input" id="val-dia" type="number" inputmode="numeric"
-                 min="40" max="160" step="1" value="80"></span>
+                 min="25" max="180" step="1" value="80"></span>
         <div class="stepper">
           <button type="button" class="step" data-step="-1" data-for="in-dia"
                   aria-label="-1">&minus;</button>
-          <input type="range" id="in-dia" min="40" max="160" step="1" value="80">
+          <input type="range" id="in-dia" min="25" max="180" step="1" value="80">
           <button type="button" class="step" data-step="1" data-for="in-dia"
                   aria-label="+1">+</button>
         </div>
@@ -107,11 +107,11 @@
       <div class="slider-row">
         <span class="slider-label"><span id="lbl-pulse"></span>
           <input class="val-input" id="val-pulse" type="number" inputmode="numeric"
-                 min="30" max="200" step="1" value="70"></span>
+                 min="20" max="250" step="1" value="70"></span>
         <div class="stepper">
           <button type="button" class="step" data-step="-1" data-for="in-pulse"
                   aria-label="-1">&minus;</button>
-          <input type="range" id="in-pulse" min="30" max="200" step="1" value="70">
+          <input type="range" id="in-pulse" min="20" max="250" step="1" value="70">
           <button type="button" class="step" data-step="1" data-for="in-pulse"
                   aria-label="+1">+</button>
         </div>
@@ -177,8 +177,8 @@
 </div>
 
 <input type="file" id="s-file-global" accept="application/json,text/csv,.json,.csv" hidden>
-<!-- Scan progress: the photo stays on screen under a scrim while the OCR
-     request is in flight. -->
+<input type="file" id="backup-file" accept=".hbp,application/json" hidden>
+<!-- Scan progress: the photo stays on screen while local OCR is running. -->
 <div class="scanning" id="scanning" hidden>
   <img id="scan-shot" alt="">
   <div class="scan-card">

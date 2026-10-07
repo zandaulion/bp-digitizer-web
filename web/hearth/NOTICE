@@ -1,0 +1,10 @@
+Hearth BP monitor OCR
+Copyright (C) 2026 zandaulion
+
+Original source code, documentation and generated app icons are licensed
+under the GNU Affero General Public License, version 3 only (AGPL-3.0-only).
+This software is provided WITHOUT ANY WARRANTY; see LICENSE.
+
+Third-party dependencies and their license/notice files retain their own terms.
+See prototype/THIRD_PARTY.md. Dataset images, starter code and trained weights
+are not included in this repository.

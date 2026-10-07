@@ -151,7 +151,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .appbar{display:flex;align-items:flex-start;gap:8px;margin:6px 0 4px;flex-wrap:wrap}
 .appbar h1{font-size:1.375rem;font-weight:500;margin:8px 0 4px;flex:1 0 100%;
   letter-spacing:0}
-/* Seven actions on one line. It must not wrap -- a second row of icons reads
+/* Actions stay on one line. A second row of icons reads
    as a second toolbar -- so the buttons shrink instead: 44px where there is
    room, down to 36px on a narrow cover screen. The height stays 44px either
    way, so the touch target only narrows, it does not shorten. */
@@ -160,12 +160,6 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .appbar-actions .icon-btn{flex:0 1 44px;width:44px;min-width:36px;height:44px;
   display:grid;place-items:center;
   border-radius:50%;color:var(--on-surface-variant);padding:0;position:relative}
-/* Same lock the scan button wears, sized for a 44px target. */
-.btn-lock{display:none}
-.icon-btn.locked .btn-lock{display:grid;place-items:center;position:absolute;
-  right:3px;bottom:3px;width:15px;height:15px;border-radius:50%;
-  background:var(--primary-container);color:var(--on-primary-container)}
-.icon-btn.locked .btn-lock svg{width:11px;height:11px}
 .appbar-actions .icon-btn:hover{background:color-mix(in srgb,var(--text) 8%,transparent)}
 
 /* --- install banner ------------------------------------------------------ */
@@ -293,15 +287,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 /* .fab sets display:grid, which outranks the UA's [hidden] rule -- without
    this, hiding the scan button did nothing at all. */
 .fab[hidden]{display:none}
-/* Locked: the camera drops to a neutral container so it reads as unavailable
-   rather than primary, and carries a lock badge saying why. */
 .fab{position:relative}
-.fab.locked{background:var(--surface-variant);color:var(--on-surface-variant)}
-.fab-lock{display:none}
-.fab.locked .fab-lock{display:grid;place-items:center;position:absolute;
-  right:6px;bottom:6px;width:24px;height:24px;border-radius:50%;
-  background:var(--primary-container);color:var(--on-primary-container)}
-.fab.locked .fab-lock svg{width:16px;height:16px}
 .fab.small{width:60px;height:60px;border-radius:18px}
 .fab.small svg{width:30px;height:30px}
 .fab:hover{filter:brightness(1.04)}
@@ -330,13 +316,6 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 /* The export glyph inline in the data note, pointing at the app bar's icon. */
 .note-ico{display:inline-flex;vertical-align:-3px;margin-right:6px;opacity:.75}
 .note-ico svg{display:block}
-
-/* Marks the section the locked camera sends you to, so arriving there does not
-   leave you hunting for what changed. */
-@keyframes flash{0%,100%{background:transparent}
-  18%,55%{background:var(--secondary-container)}}
-.flash{animation:flash 1.4s ease;border-radius:12px}
-@media (prefers-reduced-motion:reduce){.flash{animation:none}}
 
 /* --- dropdown menus (export, language) ---------------------------------- */
 .menu-wrap{position:relative}
@@ -390,12 +369,6 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   /* What is left of the screen once the keyboard has taken its share. */
   max-height:calc(100vh - var(--kb, 0px) - 12px);overflow:auto}
 .sheet-card h3{margin:0;font-size:1rem;font-weight:600}
-/* The invite code, shown when the link was opened outside the installed app.
-   Selectable, so a failed clipboard write still leaves it usable. */
-.code-out{font:inherit;font-family:ui-monospace,Menlo,monospace;font-size:1.25rem;
-  letter-spacing:.08em;text-align:center;padding:14px 10px;border-radius:12px;
-  background:var(--bg);border:1px solid var(--border);
-  -webkit-user-select:all;user-select:all}
 /* Masked passphrase field with its reveal toggle sitting inside the box. */
 .pass{display:flex;align-items:center;gap:4px;padding:0 4px 0 12px;
   border:1px solid var(--border);border-radius:11px;background:var(--bg)}

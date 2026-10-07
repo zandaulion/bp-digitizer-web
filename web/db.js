@@ -1,6 +1,5 @@
-/* Local-first storage. Readings live in IndexedDB on the device and are
-   never sent anywhere unless the user turns on encrypted backup, which
-   uploads ciphertext the server cannot read. */
+/* Local-first storage. Readings live in IndexedDB on the device. Encrypted
+   backups are explicit file exports and nothing here uploads data. */
 'use strict';
 
 const DB_NAME = 'bpdigitizer';
@@ -33,7 +32,11 @@ async function tx(store, mode, fn) {
     const s = t.objectStore(store);
     let result;
     try { result = fn(s); } catch (e) { reject(e); return; }
-    t.oncomplete = () => resolve(result && result.result !== undefined ? result.result : result);
+    // IDBRequest.result may legitimately be undefined (a missing key, delete,
+    // or put with no useful return value). Checking the value therefore turns
+    // a missing preference into the request object itself, which then poisons
+    // defaults such as `getKV('rangeDays') ?? 30` on a clean install.
+    t.oncomplete = () => resolve(result instanceof IDBRequest ? result.result : result);
     t.onerror = () => reject(t.error);
     t.onabort = () => reject(t.error);
   });

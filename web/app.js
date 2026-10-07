@@ -1,8 +1,7 @@
 import { installUpdates } from '/pwa-update.js';
 /* BP Digitizer — local-first PWA.
-   Readings live in IndexedDB and never leave the device unless the user
-   explicitly turns on encrypted backup. The app is fully usable with no
-   server at all; the server only adds OCR, backup and reminders. */
+   Readings live in IndexedDB, OCR runs locally, and encrypted backups are
+   exported as files chosen by the user. Nothing is uploaded. */
 'use strict';
 
 const BUILD = '__BUILD_VERSION__';
@@ -13,7 +12,8 @@ import { TAGS, ZONE_KEY } from './bp.js';
 import { exportPdf, exportPdfFile } from './pdf.js';
 import { recencyColor, recencyGradient, recencyAt } from './palette.js';
 import { t, plural, load as loadLocale, setLocale, locale, LOCALES, fmtDate } from './i18n.js';
-import * as srv from './server.js';
+import { createBackup, readBackup, backupFilename } from './backup.js';
+import { createHearthReader } from './hearth/reader.js';
 import { icon } from './icons.js';
 import { generateInsights } from './insights.js';
 import { collapseBursts } from './aggregate.js';
@@ -41,7 +41,7 @@ const RANGES = [
 
 const state = {
   view: 'dashboard', readings: [], profile: {}, rangeDays: 30,
-  mode: 'trend', editing: null, selectedTags: new Set(),
+  mode: 'trend', editing: null, entrySource: 'manual', selectedTags: new Set(),
 };
 
 /* Hiding also releases the FAB column, which is lifted while a toast is up. */
@@ -565,8 +565,9 @@ function syncPreview() {
     `MAP ${bp.meanArterialPressure(s, d)} · ${t('hemo_pulse_pressure')} ${bp.pulsePressure(s, d)}`;
 }
 
-async function openEntry(existing) {
+async function openEntry(existing, source = 'manual') {
   state.editing = existing || null;
+  state.entrySource = existing?.source || source;
   state.selectedTags = new Set(db.normalizeTags(existing?.tags).split(',').filter(Boolean));
   // Sliders start from the last reading, as in the app: the next measurement
   // is far more likely to be near the previous one than near 120/80.
@@ -606,7 +607,7 @@ async function saveReading() {
     category: bp.categorize(systolic, diastolic),
     notes: $('in-notes').value.trim() || null,
     tags: [...state.selectedTags].join(','),
-    source: state.editing?.source || 'manual',
+    source: state.editing?.source || state.entrySource || 'manual',
   };
   if (state.editing) await db.updateReading({ ...state.editing, ...row });
   else await db.addReading(row);
@@ -769,13 +770,13 @@ function renderSettings() {
   // copies here meant two file inputs for one job and a button to remember in
   // two places every time the export menu changed.
   $('settings-body').innerHTML = `
-    <h2 style="margin:0 0 8px">${esc(t('settings_server_title'))}</h2>
-    <div id="s-server"></div>
+    <h2 style="margin:0 0 8px">${esc(t('settings_backup_now'))}</h2>
+    <div id="s-backup-device"></div>
     <h2 style="margin:22px 0 8px">${esc(t('settings_danger_zone'))}</h2>
     <button class="link" id="s-wipe" style="color:var(--z-crisis)">${
       esc(t('settings_delete_all'))}</button>`;
 
-  renderServerSection();
+  renderBackupSection();
   const ver = $('s-version');
   if (ver) {
     ver.textContent = `build ${BUILD}`;
@@ -805,9 +806,9 @@ function renderSettings() {
    nothing and has no API, so iOS gets the manual gesture spelled out instead.
    A browser that can neither install nor be instructed is told nothing.
 
-   The offer returns every launch while the app is still not installed: this is
-   the browser copy of an app whose reminders, offline shell and storage all
-   want it on the home screen. Dismissal is per session, so it can be pushed
+   The offer returns every launch while the app is still not installed: the
+   offline shell, local OCR and durable standalone storage all benefit from
+   installation. Dismissal is per session, so it can be pushed
    aside for now without being answered once and for all. */
 const INSTALL_DISMISSED = 'bp.install.dismissed';
 let installPrompt = null;
@@ -864,80 +865,15 @@ function setupInstallBanner() {
   show();                        // iOS has no event to wait for
 }
 
-/* An installed PWA has its own storage, separate from the browser that
-   installed it. So redeeming an invite in a tab registers the tab -- and
-   spends the code, which is single-use -- while the app the recipient
-   actually opens stays unlinked. */
+/* Used only to avoid offering installation to an already installed app. */
 const isInstalled = () =>
   window.matchMedia('(display-mode: standalone)').matches
   || window.matchMedia('(display-mode: fullscreen)').matches
   || navigator.standalone === true;                       // iOS Safari
 
-async function copyText(text) {
-  try {
-    if (navigator.clipboard && window.isSecureContext) {
-      await navigator.clipboard.writeText(text);
-      return true;
-    }
-  } catch { /* fall through */ }
-  const ta = document.createElement('textarea');
-  ta.value = text;
-  ta.setAttribute('readonly', '');
-  ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
-  document.body.appendChild(ta);
-  ta.select();
-  ta.setSelectionRange(0, text.length);                   // iOS needs the range
-  let ok = false;
-  try { ok = document.execCommand('copy'); } catch { ok = false; }
-  ta.remove();
-  return ok;
-}
-
-async function redeemFromLink(code) {
-  try {
-    await srv.redeem(code);
-    history.replaceState({}, '', '/');
-    toast(t('settings_server_linked'));
-    updateServerUi();
-  } catch (e) {
-    // A spent or expired code is not worth a dialog on launch; the settings
-    // screen says the same thing, in context, whenever the user goes looking.
-    toast(e.message);
-  }
-}
-
-/* Opened in a browser rather than the installed app: hand over the code
-   instead of spending it here. */
-function offerCode(code) {
-  const sheet = $('sheet');
-  const dismiss = () => { sheet.hidden = true; sheet.onclick = null; };
-  const close = () => { closeOverlay(dismiss); dismiss(); };
-  sheet.innerHTML = `<div class="sheet-card">
-      <h3>${esc(t('invite_install_title'))}</h3>
-      <p class="muted" style="margin:0">${esc(t('invite_install_body'))}</p>
-      <div class="code-out">${esc(code)}</div>
-      <button class="btn" id="inv-copy">${esc(t('invite_copy_code'))}</button>
-      <button class="link" id="inv-here">${esc(t('invite_use_here'))}</button>
-    </div>`;
-  sheet.hidden = false;
-  sheet.onclick = (e) => { if (e.target === sheet) close(); };
-  openOverlay(dismiss);
-
-  $('inv-copy').addEventListener('click', async () => {
-    const b = $('inv-copy');
-    const ok = await copyText(code);
-    b.textContent = ok ? t('action_ok') : t('invite_copy_code');
-    // The code stays on screen either way, so a failed copy is not a dead end.
-  });
-  $('inv-here').addEventListener('click', async () => {
-    close();
-    await redeemFromLink(code);
-  });
-}
-
 /* prompt() renders the passphrase in clear text on screen and in the platform
-   dialog's own history, which is the wrong place for the one secret the server
-   deliberately cannot recover. This is the same bottom sheet the rest of the
+   dialog's own history, which is the wrong place for the one secret that can
+   decrypt a backup file. This is the same bottom sheet the rest of the
    app uses, with a masked field and a reveal toggle -- blind typing is worse
    than no masking when a typo produces a backup nobody can open.
    Resolves to the passphrase, or null if dismissed. */
@@ -998,255 +934,116 @@ function askPassphrase({ title, message, autocomplete }) {
   });
 }
 
-/* A linked device has encrypted server backup, so telling it to export for
-   safekeeping is stale advice. An unlinked one has only the export menu -- and
-   that lives behind an icon in the app bar, so the note carries the same icon
-   as a pointer to where it is. */
+/* Browser storage is the live copy; a separately downloaded encrypted file is
+   the recovery copy if the browser or installed app is cleared. */
 function renderDataNote() {
   const el = $('foot');
   if (!el) return;
-  el.innerHTML = srv.state.linked
-    ? esc(t('settings_backup_note'))
-    : `<span class="note-ico">${icon('share', 16)}</span>${esc(t('settings_local_only_note'))}`;
+  el.innerHTML = `<span class="note-ico">${icon('share', 16)}</span>${
+    esc(t('settings_local_only_note'))}`;
 }
 
-/* ------------------------------------------------------ server features -- */
-async function renderServerSection() {
-  const box = $('s-server');
+/* ------------------------------------------------ on-device backup ------- */
+const BACKUP_META = 'deviceBackupInfo';
+const MAX_BACKUP_FILE = 20 * 1024 * 1024;
+
+async function renderBackupSection() {
+  const box = $('s-backup-device');
   if (!box) return;
-  // Wait for the probe rather than assuming unlinked: rendering "enter a
-  // code" while the answer is still in flight makes a linked device look
-  // unlinked on every refresh.
-  if (!srv.state.checked) {
-    box.innerHTML = `<p class="muted">${esc(t('settings_server_checking'))}</p>`;
-  }
-  try { await srv.ready(); } catch { /* falls through to absent */ }
-  if ($('s-server') !== box) return;        // user navigated away meanwhile
-  renderDataNote();                         // `linked` is only known now
-  if (srv.state.present === false) {
-    box.innerHTML = `<p class="muted">${esc(t('settings_server_absent'))}</p>`;
-    return;
-  }
-  if (!srv.state.linked) {
-    box.innerHTML = `
-      <p class="muted">${esc(t('settings_server_locked'))}</p>
-      <div class="actions" style="margin-top:8px">
-        <input id="s-code" placeholder="ABCD-EFGH-JKLM" style="flex:1;font:inherit;
-          padding:10px 12px;border-radius:11px;border:1px solid var(--border);
-          background:var(--bg);color:var(--text);text-transform:uppercase;
-          font-family:ui-monospace,Menlo,monospace;letter-spacing:.06em">
-        <button class="btn" id="s-link">${esc(t('settings_server_link'))}</button>
-      </div>
-      <p class="err" id="s-code-err" hidden></p>`;
-
-    $('s-link').addEventListener('click', async () => {
-      const err = $('s-code-err'); err.hidden = true;
-      try {
-        await srv.redeem($('s-code').value);
-        toast(t('settings_server_linked'));
-        await renderServerSection();
-        updateServerUi();
-      } catch (e) { err.textContent = e.message; err.hidden = false; }
-    });
-    return;
-  }
-
-  const f = srv.state.serverFeatures || {};
+  const info = await db.getKV(BACKUP_META);
+  if ($('s-backup-device') !== box) return;
   box.innerHTML = `
-    <p class="muted">${esc(t('settings_server_linked_as', srv.state.device?.label || '—'))}</p>
+    <p class="muted">${esc(t('settings_local_only_note'))}</p>
     <div class="actions" style="flex-wrap:wrap;margin-top:10px">
       <button class="btn" id="s-backup">${esc(t('settings_backup_now'))}</button>
       <button class="link" id="s-restore">${esc(t('settings_restore'))}</button>
-      <button class="link" id="s-reminders">${esc(t('settings_reminders'))}</button>
     </div>
-    <p class="muted" id="s-backup-info" style="margin-top:8px"></p>
-    <p class="muted" style="margin-top:8px">${esc(
-      f.ocr ? t('settings_ocr_available', f.ocrLimit) : t('settings_ocr_unconfigured'))}</p>`;
+    <p class="muted" id="s-backup-info" style="margin-top:8px">${esc(info
+      ? t('settings_backup_exists', info.readings ?? '?', fmtDate(info.createdAt))
+      : t('settings_backup_none'))}</p>`;
 
-  srv.backupInfo().then((i) => {
-    $('s-backup-info').textContent = i.exists
-      ? t('settings_backup_exists', i.readings ?? '?', fmtDate(Date.parse(i.updated_at)))
-      : t('settings_backup_none');
-  }).catch(() => {});
-
-  $('s-backup').addEventListener('click', async () => {
-    const pass = await askPassphrase({
-      title: t('settings_backup_now'), message: t('settings_backup_passphrase'),
-      // new-password so a password manager offers to store the one secret the
-      // server cannot recover, rather than autofilling something unrelated.
-      autocomplete: 'new-password',
-    });
-    if (!pass) return;
-    try {
-      await srv.backup(pass, {
-        readings: await db.allReadings(), profile: await db.getKV('profile'),
-      });
-      toast(t('settings_backup_done'));
-      await renderServerSection();
-    } catch (e) { toast(e.message); }
-  });
-
-  $('s-restore').addEventListener('click', async () => {
-    const pass = await askPassphrase({
-      title: t('settings_restore'), message: t('settings_restore_passphrase'),
-      autocomplete: 'current-password',
-    });
-    if (!pass) return;
-    try {
-      const data = await srv.restore(pass);
-      const { added, skipped } = await db.importReadings(data.readings || []);
-      if (data.profile) await db.setKV('profile', data.profile);
-      toast(t('dashboard_snack_imported', added));
-      refresh();
-    } catch (e) {
-      toast(e.code === 'wrong-passphrase' ? t('settings_restore_wrong') : e.message);
-    }
-  });
-
-  $('s-reminders').addEventListener('click', configureReminders);
+  $('s-backup').addEventListener('click', createDeviceBackup);
+  $('s-restore').addEventListener('click', () => $('backup-file').click());
 }
 
-async function configureReminders() {
-  // Reminders are delivered by the optional server, so without a link there is
-  // nothing to configure -- say so rather than failing mid-dialogue.
-  await srv.ready();
-  if (!srv.state.linked) {
-    // Say why, then go where the code is entered -- as the locked camera does.
-    toast(t('settings_server_locked'));
-    openServerSettings();
+async function createDeviceBackup() {
+  const pass = await askPassphrase({
+    title: t('settings_backup_now'), message: t('settings_backup_passphrase'),
+    autocomplete: 'new-password',
+  });
+  if (!pass) return;
+  try {
+    const readings = await db.allReadings();
+    const text = await createBackup(pass, {
+      readings, profile: await db.getKV('profile'),
+      exportedAt: new Date().toISOString(),
+    });
+    download(backupFilename(), text, 'application/json');
+    await db.setKV(BACKUP_META, { readings: readings.length, createdAt: Date.now() });
+    toast(t('settings_backup_done'));
+    if ($('s-backup-device')) await renderBackupSection();
+    renderDataNote();
+  } catch {
+    toast(t('dashboard_snack_export_failed'));
+  }
+}
+
+async function restoreDeviceBackup(file) {
+  if (!file || file.size > MAX_BACKUP_FILE) {
+    toast(t('dashboard_snack_import_failed'));
     return;
   }
-
-  let current = { times: '', enabled: 0 };
-  try { current = await srv.getReminders(); } catch { /* none set yet */ }
-  const [morning = '08:00', evening = '20:00'] =
-    String(current.times || '').split(',').map((x) => x.trim()).filter(Boolean);
-
-  const sheet = $('sheet');
-  const row = (label, desc, id, value) => `
-    <div style="display:flex;align-items:center;gap:12px;margin:14px 0">
-      <div style="flex:1">
-        <div style="font-size:.9375rem">${esc(t(label))}</div>
-        <div class="muted">${esc(t(desc))}</div>
-      </div>
-      <input type="time" id="${id}" value="${value}" style="font:inherit;
-        padding:8px 10px;border-radius:10px;border:1px solid var(--outline);
-        background:var(--bg);color:var(--text)">
-    </div>`;
-  sheet.innerHTML = `<div class="sheet-card" style="max-height:85vh;overflow:auto">
-      <h3>${esc(t('reminders_title'))}</h3>
-      <label style="display:flex;align-items:center;gap:12px">
-        <input type="checkbox" id="rm-on" ${current.enabled ? 'checked' : ''}
-               style="width:20px;height:20px;accent-color:var(--accent)">
-        <span style="flex:1">
-          <span style="font-size:.9375rem">${esc(t('reminders_enable_label'))}</span><br>
-          <span class="muted">${esc(t('reminders_enable_desc'))}</span>
-        </span>
-      </label>
-      <hr class="divider">
-      ${row('reminders_morning_label', 'reminders_morning_desc', 'rm-am', morning)}
-      ${row('reminders_evening_label', 'reminders_evening_desc', 'rm-pm', evening)}
-      <p class="muted" style="margin:4px 0 0">${esc(t('reminders_footer'))}</p>
-      <div class="actions" style="justify-content:flex-end;gap:8px;margin-top:8px">
-        <button class="text-btn" id="rm-cancel">${esc(t('action_cancel'))}</button>
-        <button class="btn" id="rm-ok">${esc(t('action_ok'))}</button>
-      </div>
-    </div>`;
-  sheet.hidden = false;
-  const dismiss = () => { sheet.hidden = true; sheet.onclick = null; };
-  const close = () => { closeOverlay(dismiss); dismiss(); };
-  sheet.onclick = (e) => { if (e.target === sheet) close(); };
-  $('rm-cancel').addEventListener('click', close);
-  openOverlay(dismiss);
-  $('rm-ok').addEventListener('click', async () => {
-    const on = $('rm-on').checked;
-    const times = [$('rm-am').value, $('rm-pm').value].filter(Boolean);
-    close();
-    // Save the preference before asking for anything. Subscribing can fail --
-    // permission refused, no push support -- and losing the times the user just
-    // chose because the browser said no to notifications is its own bug.
-    try {
-      await srv.setReminders(times, on);
-    } catch (e) {
-      toast(e.message);
-      return;
-    }
-    if (!on) { toast(t('settings_reminders_off')); return; }
-    try {
-      await srv.subscribePush();
-      toast(t('settings_reminders_set', times.join(', ')));
-    } catch (e) {
-      // Saved, but undeliverable until the browser allows notifications.
-      toast(e.message === 'permission-denied' || e.message === 'no-push-support'
-        ? t('reminders_notif_perm_desc') : e.message);
-    }
+  const pass = await askPassphrase({
+    title: t('settings_restore'), message: t('settings_restore_passphrase'),
+    autocomplete: 'current-password',
   });
-}
-
-/* The scan button has three states, not two. A server that offers OCR but has
-   not been linked yet gets a locked camera rather than nothing at all: hiding
-   it left no way to find out the feature exists, let alone how to unlock it.
-   serverFeatures is only set once /api/health has answered, so an absent
-   server still means no button -- there would be nothing to unlock. */
-/* Both controls that a code unlocks, refreshed together -- they answer to the
-   same probe, and one updating without the other is how they drift. */
-function updateServerUi() {
-  updateScanButton();
-  updateReminderButton();
-}
-
-/* Reminders need the server too, so the bell carries the same lock as the
-   camera rather than looking available and then refusing. */
-function updateReminderButton() {
-  const b = $('ab-reminders');
-  if (!b) return;
-  const locked = !srv.state.linked;
-  b.classList.toggle('locked', locked);
-  const label = t(locked ? 'settings_server_locked' : 'dashboard_cd_reminders');
-  b.title = label;
-  b.setAttribute('aria-label', label);
+  if (!pass) return;
+  try {
+    const data = await readBackup(pass, await file.text());
+    const { added } = await db.importReadings(data.readings);
+    if (data.profile) await db.setKV('profile', data.profile);
+    toast(t('dashboard_snack_imported', added));
+    await refresh();
+    if ($('s-backup-device')) await renderBackupSection();
+  } catch (error) {
+    toast(error.code === 'wrong-passphrase'
+      ? t('settings_restore_wrong') : t('dashboard_snack_import_failed'));
+  }
 }
 
 function updateScanButton() {
   const fab = $('fab-scan');
   if (!fab) return;
-  const canOcr = !!srv.state.serverFeatures?.ocr;
-  const unlocked = canOcr && srv.state.linked;
-  fab.hidden = !canOcr;
-  fab.classList.toggle('locked', !unlocked);
-  const label = t(unlocked ? 'dashboard_cd_scan' : 'settings_server_locked');
-  fab.title = label;
-  fab.setAttribute('aria-label', label);
+  fab.hidden = false;
+  fab.title = t('dashboard_cd_scan');
+  fab.setAttribute('aria-label', t('dashboard_cd_scan'));
 }
 
-/* Takes the user to the one place the lock can be opened, rather than leaving
-   them to find it. */
-function openServerSettings() {
-  renderSettings();
-  show('settings');
-  const box = $('s-server');
-  if (!box) return;
-  // The heading rather than the box, so the section title comes with it.
-  (box.previousElementSibling || box).scrollIntoView({ behavior: 'smooth', block: 'start' });
-  box.classList.remove('flash');
-  void box.offsetWidth;                      // restart the animation
-  box.classList.add('flash');
+let ocrReaderPromise = null;
+
+function getOcrReader() {
+  if (!ocrReaderPromise) {
+    ocrReaderPromise = createHearthReader(`/hearth/inference-worker.js?v=${BUILD}`)
+      .catch((error) => {
+        ocrReaderPromise = null;
+        throw error;
+      });
+  }
+  return ocrReaderPromise;
 }
 
-/* The scan overlay, ported from CaptureScreen's ProcessingOverlay. Reading a
-   monitor takes several seconds, and a screen that shows nothing invites a
-   refresh or a second attempt -- both of which spend the day's OCR quota for
-   nothing, since the first request is already on its way. So the photo stays
-   on screen under a scrim, a bar fills, and the status text advances, all of
-   which say "this is working" without promising a completion time.
+function resetOcrReader() {
+  const pending = ocrReaderPromise;
+  ocrReaderPromise = null;
+  pending?.then((reader) => reader.dispose()).catch(() => {});
+}
 
-   The bar runs to 80% over eight seconds and then holds. It is honest about
-   what it knows: the server reports no progress, so the last stretch cannot be
-   claimed. The cancel button is the escape hatch -- the user is informed, not
-   trapped. */
+/* The local worker reports only completion, so the progress bar stops short of
+   100%. Cancel terminates the worker and its in-flight inference; the next scan
+   creates a fresh reader. */
 const OCR_STATUS = ['capture_status_sending', 'capture_status_reading',
                     'capture_status_extracting', 'capture_status_almost'];
-const OCR_STATUS_AT = [2000, 5000, 8000];   // when messages 1..3 take over
+const OCR_STATUS_AT = [2000, 5000, 8000];
 const OCR_FILL_MS = 8000;
 
 async function scanPhoto(file) {
@@ -1260,25 +1057,25 @@ async function scanPhoto(file) {
   bar.style.transition = 'none';
   bar.style.width = '0%';
   box.hidden = false;
-  // A frame between the reset and the target, or there is nothing to animate.
   requestAnimationFrame(() => {
     bar.style.transition = `width ${OCR_FILL_MS}ms linear`;
     bar.style.width = '80%';
   });
 
-  const timers = OCR_STATUS_AT.map((at, i) =>
-    setTimeout(() => { $('scan-status').textContent = t(OCR_STATUS[i + 1]); }, at));
-
-  const ctrl = new AbortController();
-  const cancel = () => ctrl.abort();
-  $('scan-cancel').addEventListener('click', cancel);
-  // Back during a scan means the same thing the Cancel button does.
-  openOverlay(cancel);
-  // Reloading mid-request abandons a scan that has already been paid for.
-  const guard = (e) => { e.preventDefault(); e.returnValue = ''; };
-  window.addEventListener('beforeunload', guard);
-
-  const finish = () => {
+  const timers = OCR_STATUS_AT.map((delay, i) =>
+    setTimeout(() => { $('scan-status').textContent = t(OCR_STATUS[i + 1]); }, delay));
+  let cancelled = false, finished = false;
+  const guard = (event) => { event.preventDefault(); event.returnValue = ''; };
+  let finish = () => {};
+  const cancel = () => {
+    if (cancelled) return;
+    cancelled = true;
+    resetOcrReader();
+    finish();
+  };
+  finish = () => {
+    if (finished) return;
+    finished = true;
     closeOverlay(cancel);
     timers.forEach(clearTimeout);
     window.removeEventListener('beforeunload', guard);
@@ -1288,44 +1085,47 @@ async function scanPhoto(file) {
     URL.revokeObjectURL(url);
   };
 
+  $('scan-cancel').addEventListener('click', cancel);
+  openOverlay(cancel);
+  window.addEventListener('beforeunload', guard);
+
   try {
-    const r = await srv.readMonitor(file, ctrl.signal);
+    const { result } = await (await getOcrReader()).read(file);
+    if (cancelled) return;
     finish();
-    if (r.systolic == null || r.diastolic == null) {
-      // A photo the model could not read is not a dead end: open manual entry
-      // anyway, seeded from the last reading as it always is, and say what
-      // happened there rather than in a toast that vanishes. Retaking is one
-      // tap from the same screen.
+    if (!result.reading) {
       await openEntry(null);
       $('add-error-text').textContent = t('capture_error_unreadable');
       $('add-retake').textContent = t('validation_retake');
       $('add-error').hidden = false;
       return;
     }
-    await openEntry(null);
-    $('in-sys').value = r.systolic;
-    $('in-dia').value = r.diastolic;
-    if (r.pulse) $('in-pulse').value = r.pulse;
+    await openEntry(null, 'ocr');
+    $('in-sys').value = result.reading.sys;
+    $('in-dia').value = result.reading.dia;
+    $('in-pulse').value = result.reading.pulse;
     syncPreview();
-    toast(t('capture_check_values'));
-  } catch (e) {
+    if (result.status === 'review') {
+      $('add-error-text').textContent = t('capture_check_values');
+      $('add-retake').textContent = t('validation_retake');
+      $('add-error').hidden = false;
+    } else {
+      toast(t('capture_check_values'));
+    }
+  } catch (error) {
     finish();
-    // Cancelling is a choice, not a failure; it needs no message.
-    if (e.name !== 'AbortError') toast(e.message);
+    if (!cancelled) toast(error.message);
   }
 }
 
 /* ---------------------------------------------------------------- boot --- */
-/* The DashboardScreen top app bar: title, then reminders, profile, import,
-   export, help and language, in that order. */
+/* Dashboard actions: profile, import, export, help, language and settings. */
 function renderAppbar() {
   const box = $('appbar-actions');
   const btn = (id, name, key, extra = '') =>
     `<button class="icon-btn" id="${id}" title="${esc(t(key))}" aria-label="${
       esc(t(key))}">${icon(name, 24)}${extra}</button>`;
   box.innerHTML = `
-    ${btn('ab-reminders', 'bell', 'dashboard_cd_reminders',
-          `<span class="btn-lock">${icon('lock', 12)}</span>`)}
     ${btn('ab-profile', 'person', 'dashboard_cd_profile')}
     ${btn('ab-import', 'download', 'dashboard_cd_import')}
     <span class="menu-wrap">
@@ -1352,7 +1152,6 @@ function renderAppbar() {
     document.querySelectorAll('.menu').forEach((x) => { x.hidden = true; });
     m.hidden = wasOpen;
   };
-  $('ab-reminders').addEventListener('click', configureReminders);
   $('ab-profile').addEventListener('click', () => { renderProfile(); show('profile'); });
   $('ab-import').addEventListener('click', () => $('s-file-global').click());
   $('ab-export').addEventListener('click', () => toggle('menu-export'));
@@ -1365,14 +1164,12 @@ function renderAppbar() {
   $('menu-lang').querySelectorAll('[data-loc]').forEach((b) =>
     b.addEventListener('click', async () => {
       await setLocale(b.dataset.loc);
-      applyStatic(); renderAppbar(); renderSettings(); refresh(); updateServerUi();
+      applyStatic(); renderAppbar(); renderSettings(); refresh(); updateScanButton();
     }));
   $('ab-settings').addEventListener('click', () => { renderSettings(); show('settings'); });
   $('hero-title')?.addEventListener('click', () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   });
-  // Rebuilding the bar drops the lock class, so restore it from what we know.
-  updateReminderButton();
 }
 
 /* HELP_SECTIONS from HelpScreen.kt, same order and the same icons, minus the
@@ -1380,7 +1177,7 @@ function renderAppbar() {
    icon keep the space, so every title starts on the same line. */
 const HELP_TOPICS = [
   ['camera', 'camera'], ['manual', 'edit'], ['trends', null], ['history', null],
-  ['profile', 'person'], ['risk', null], ['hemo', null], ['reminders', 'bell'],
+  ['profile', 'person'], ['risk', null], ['hemo', null],
   ['export', 'share'], ['import', 'download'], ['insights', 'lightbulb'],
 ];
 
@@ -1471,16 +1268,18 @@ function wireStepper(btn) {
 function wire() {
   $('fab-add').innerHTML = icon('edit');
   $('fab-add').title = t('dashboard_cd_add_manually');
-  $('fab-scan').innerHTML = `${icon('camera')}<span class="fab-lock">${icon('lock', 16)}</span>`;
+  $('fab-scan').innerHTML = icon('camera');
   $('fab-scan').title = t('dashboard_cd_scan');
   $('fab-add').addEventListener('click', () => openEntry(null));
-  $('fab-scan').addEventListener('click', () => {
-    if ($('fab-scan').classList.contains('locked')) { openServerSettings(); return; }
-    $('scan-file').click();
-  });
+  $('fab-scan').addEventListener('click', () => $('scan-file').click());
   $('s-file-global').addEventListener('change', (e) => {
     if (e.target.files[0]) importFile(e.target.files[0]);
     e.target.value = '';
+  });
+  $('backup-file').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (file) await restoreDeviceBackup(file);
   });
   // A tap outside any open menu closes it, as a DropdownMenu scrim would.
   document.addEventListener('click', (e) => {
@@ -1536,27 +1335,17 @@ async function boot() {
   await loadLocale();
   applyStatic();
   wire();
+  updateScanButton();
   renderAppbar();
   setupInstallBanner();
+  // Warm the local models without delaying the dashboard or database.
+  getOcrReader().catch(() => {});
   state.rangeDays = (await db.getKV('rangeDays')) ?? 30;
   state.mode = (await db.getKV('chartMode')) || 'trend';
   // Defaults on, matching DashboardViewModel's smoothBursts = true.
   state.smooth = (await db.getKV('smoothBursts')) ?? true;
   await refresh();
   show('dashboard');
-  // Probing is deliberately after first paint: a missing or slow server must
-  // never delay an app that does not need one.
-  srv.ready().then(() => { updateServerUi(); }).catch(() => {});
-  const code = new URLSearchParams(location.search).get('code');
-  // Only redeem when not already linked: re-opening the invite link
-  // otherwise rotates the device token on every visit for no reason.
-  if (code) {
-    srv.ready().then((st) => {
-      if (st.linked) { history.replaceState({}, '', '/'); return; }
-      if (isInstalled()) return redeemFromLink(code);
-      offerCode(code);
-    }).catch(() => {});
-  }
   installUpdates({
     appName: 'wBP Digitizer',
     toast: (message) => toast(message)
