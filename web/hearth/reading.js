@@ -4,6 +4,12 @@
 export const CLASS_NAMES = ['0','1','row','2','3','4','5','6','7','8','9'];
 export const FIELDS = ['sys','dia','pulse'];
 
+export function isPlausibleReading(reading) {
+  return !!reading&&FIELDS.every(key=>Number.isInteger(reading[key]))&&
+    reading.sys>=50&&reading.sys<=280&&reading.dia>=25&&reading.dia<=180&&
+    reading.pulse>=20&&reading.pulse<=250&&reading.sys>reading.dia;
+}
+
 export function iou(a,b) {
   const overlap=Math.max(0,Math.min(a[2],b[2])-Math.max(a[0],b[0]))*Math.max(0,Math.min(a[3],b[3])-Math.max(a[1],b[1]));
   const aa=Math.max(0,a[2]-a[0])*Math.max(0,a[3]-a[1]);
@@ -32,10 +38,14 @@ export function assemble(detections,minScore=.25,acceptScore=.75) {
   const digits=detections.filter(d=>d.class!=='row');
   const candidates=[];
   for(const row of rows) {
-    const [x1,y1,x2,y2]=row.box,w=x2-x1,h=y2-y1;
+    const [x1,y1,x2,y2]=row.box,h=y2-y1;
     const group=digits.filter(d=>{
-      const cx=(d.box[0]+d.box[2])/2,cy=(d.box[1]+d.box[3])/2;
-      return cx>=x1-.03*w&&cx<=x2+.03*w&&cy>=y1-.08*h&&cy<=y2+.08*h;
+      const cy=(d.box[1]+d.box[3])/2;
+      // Row proposals occasionally end inside a narrow edge digit. Match the
+      // digit box's near edge within 20% of row height instead of expanding by
+      // row width, which can sweep distant labels/digits into a wide row.
+      return d.box[2]>=x1-.2*h&&d.box[0]<=x2+.2*h&&
+        cy>=y1-.08*h&&cy<=y2+.08*h;
     }).sort((a,b)=>(a.box[0]+a.box[2])-(b.box[0]+b.box[2]));
     if(![2,3].includes(group.length)||group.some(d=>!/^\d$/.test(d.class))) continue;
     const text=group.map(d=>d.class).join('');
@@ -60,7 +70,7 @@ export function assemble(detections,minScore=.25,acceptScore=.75) {
   if(valid.length!==1) return {status:'retake',reading:null,score:null,reasons:['Could not identify one unambiguous three-row reading'],rows:[],detections};
   const stack=valid[0],reading=Object.fromEntries(FIELDS.map((key,i)=>[key,stack[i].value]));
   const score=Math.min(...stack.map(r=>r.score)),reasons=[];
-  if(!(reading.sys>=50&&reading.sys<=280&&reading.dia>=25&&reading.dia<=180&&reading.pulse>=20&&reading.pulse<=250&&reading.sys>reading.dia)) reasons.push('Values failed consistency checks; verify every displayed number');
+  if(!isPlausibleReading(reading)) reasons.push('Values failed consistency checks; verify every displayed number');
   if(score<acceptScore) reasons.push('At least one detected row or digit has low confidence');
   return {status:reasons.length?'review':'candidate',reading,score,reasons,rows:stack,detections};
 }

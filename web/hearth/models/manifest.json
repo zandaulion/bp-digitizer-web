@@ -1,5 +1,5 @@
 {
-  "version": "v2-adaptive2",
+  "version": "v2-adaptive3",
   "license": "AGPL-3.0-only",
   "files": {
     "bp-detector.onnx": {

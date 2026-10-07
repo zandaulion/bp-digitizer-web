@@ -2,14 +2,14 @@
 // Copyright (C) 2026 zandaulion
 // Crop proposals use detected geometry only, never expected reading values.
 import {selectCropFallback} from './crop-fallback.js';
+import {isPlausibleReading} from './reading.js';
 
 export function selectAdaptiveFallback(full,replays){
-  if(full.reading||replays.length!==2)return full;
+  if(isPlausibleReading(full.reading)||replays.length!==2)return full;
   for(const {result:r} of replays){
     const v=r.reading;
     if(!v||!['candidate','review'].includes(r.status))return full;
-    if(![v.sys,v.dia,v.pulse].every(Number.isInteger))return full;
-    if(!(v.sys>=50&&v.sys<=280&&v.dia>=25&&v.dia<=180&&v.pulse>=20&&v.pulse<=250&&v.sys>v.dia))return full;
+    if(!isPlausibleReading(v))return full;
   }
   // Reuse agreement/coordinate mapping, then retain the least certain status.
   const selected=selectCropFallback(full,replays.map(v=>({...v,result:{...v.result,status:'candidate'}})));

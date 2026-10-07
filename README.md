@@ -34,7 +34,7 @@ DEST=/another/static/root ./deploy.sh
 
 The camera reader is integrated from
 [Hearth BP monitor OCR](https://github.com/zandaulion/hearth-bp-ocr) at source
-revision `10bd461373e4f5d2de0eee63f475c4c1cae22b34`. It uses ONNX Runtime Web
+revision `af4573d328006de1b599ef3c5690dfaaa0810cea`. It uses ONNX Runtime Web
 1.30.0, a detector and a digit recognizer in a module worker. The matching
 models, thresholds and runtime are shipped under `web/hearth/` and cached as a
 single release.
@@ -51,6 +51,18 @@ calibrated correctness probabilities.
 
 The two models total about 10.9 MB. The first online load downloads those models
 and the WebAssembly runtime; later reads can run offline.
+
+### OCR evaluation log
+
+Settings has an opt-in, device-local evaluation log for measuring OCR during a
+trial. When enabled, it retains up to 100 resized, EXIF-stripped scan pictures,
+the complete raw OCR result, and whether the values were changed before their
+first save. Refused, discarded, retaken and failed scans are kept too.
+
+The log is off by default, never uploaded, and deliberately excluded from the
+encrypted readings backup. It can be inspected, exported as clear-text JSON
+(including pictures), or deleted in Settings. Treat an exported log as
+sensitive health data.
 
 ## On-device backup
 
@@ -76,6 +88,7 @@ format is the privacy-preserving recovery format.
 
 - Manual entry with sliders, numeric fields and accelerated press-and-hold steps
 - Local camera OCR with editable candidate/review results and safe refusal
+- Optional local OCR evaluation log with pictures and correction outcomes
 - AHA zones, mean arterial pressure and pulse pressure
 - Trend and SYS/DIA scatter charts over 7, 30, 90 days or all readings
 - Optional burst averaging for chart display
@@ -98,6 +111,7 @@ web/
   bp.js               zones, MAP, BMI and risk calculations
   aggregate.js        burst averaging
   insights.js         dashboard observations
+  ocr-audit.js         local OCR evaluation image and outcome helpers
   pdf.js              printable and rasterized PDF reports
   hearth/             local worker, models, ONNX runtime and notices
   i18n/               translated catalogues

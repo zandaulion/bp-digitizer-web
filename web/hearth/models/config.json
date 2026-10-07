@@ -1,5 +1,5 @@
 {
-  "version": "v2-adaptive2",
+  "version": "v2-adaptive3",
   "size": 512,
   "minScore": 0.2,
   "acceptScore": 0.25,
@@ -36,11 +36,11 @@
         0.5
       ]
     ],
-    "acceptance": "Only after no full-frame reading; both views must be candidates with identical SYS/DIA/pulse; scores are not calibrated probabilities"
+    "acceptance": "Only after no plausible full-frame reading; both views must be candidates with identical SYS/DIA/pulse; scores are not calibrated probabilities"
   },
   "adaptiveCropFallback": {
     "enabled": true,
-    "after": "No full-frame or agreeing central-crop reading",
+    "after": "No plausible full-frame or agreeing central-crop reading",
     "normalizationFractions": [
       0.04,
       0.05

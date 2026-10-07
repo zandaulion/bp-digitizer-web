@@ -22,8 +22,11 @@ function pick() {
 
 export async function load(locale) {
   current = locale || pick();
-  const res = await fetch(`/i18n/${current}.json`);
-  strings = await res.json();
+  const selected = await fetch(`/i18n/${current}.json`).then((res) => res.json());
+  // Small experimental features can ship safely before all twelve catalogues
+  // are updated. English is the visible fallback instead of an internal key.
+  const fallback = current === 'en' ? {} : await fetch('/i18n/en.json').then((res) => res.json());
+  strings = { ...fallback, ...selected };
   document.documentElement.lang = current;
   document.documentElement.dir = RTL.has(current) ? 'rtl' : 'ltr';
   return current;

@@ -3,7 +3,7 @@
 'use strict';
 
 const DB_NAME = 'bpdigitizer';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 let dbPromise = null;
 
 function open() {
@@ -18,6 +18,10 @@ function open() {
         s.createIndex('timestamp', 'timestamp');
       }
       if (!db.objectStoreNames.contains('kv')) db.createObjectStore('kv');
+      if (!db.objectStoreNames.contains('ocrAudits')) {
+        const s = db.createObjectStore('ocrAudits', { keyPath: 'id', autoIncrement: true });
+        s.createIndex('createdAt', 'createdAt');
+      }
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -114,6 +118,35 @@ export async function importReadings(rows) {
 
 export const getKV = (k) => tx('kv', 'readonly', (s) => s.get(k));
 export const setKV = (k, v) => tx('kv', 'readwrite', (s) => s.put(v, k));
+
+export const addOcrAudit = (row) =>
+  tx('ocrAudits', 'readwrite', (s) => s.add(row));
+
+export const getOcrAudit = (id) =>
+  tx('ocrAudits', 'readonly', (s) => s.get(id));
+
+export async function updateOcrAudit(id, patch) {
+  const row = await getOcrAudit(id);
+  if (!row) return false;
+  await tx('ocrAudits', 'readwrite', (s) => s.put({ ...row, ...patch, id }));
+  return true;
+}
+
+export async function allOcrAudits() {
+  const rows = await tx('ocrAudits', 'readonly', (s) => s.getAll());
+  return (rows || []).sort((a, b) => b.createdAt - a.createdAt);
+}
+
+export const deleteOcrAudit = (id) =>
+  tx('ocrAudits', 'readwrite', (s) => s.delete(id));
+
+export const clearOcrAudits = () =>
+  tx('ocrAudits', 'readwrite', (s) => s.clear());
+
+export async function pruneOcrAudits(maxEntries) {
+  const rows = await allOcrAudits();
+  for (const row of rows.slice(maxEntries)) await deleteOcrAudit(row.id);
+}
 
 export async function stats() {
   const all = await allReadings();

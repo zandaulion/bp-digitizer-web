@@ -5,7 +5,7 @@ const VERSION = '__BUILD_VERSION__';
 const CACHE = 'bp-shell-' + VERSION;
 const SHELL = ['/', '/index.html', '/app.css', '/app.js', '/db.js', '/bp.js', '/i18n.js',
                '/backup.js', '/aggregate.js', '/icons.js', '/insights.js', '/palette.js',
-               '/pdf.js', '/pwa-update.js', '/sw-update.js',
+               '/ocr-audit.js', '/pdf.js', '/pwa-update.js', '/sw-update.js',
                '/manifest.webmanifest', '/icons/icon.svg', '/icons/icon-192.png',
                '/icons/icon-512.png', '/icons/maskable-512.png',
                // Local OCR: implementation, pinned runtime and matching models.

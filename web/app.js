@@ -14,6 +14,8 @@ import { recencyColor, recencyGradient, recencyAt } from './palette.js';
 import { t, plural, load as loadLocale, setLocale, locale, LOCALES, fmtDate } from './i18n.js';
 import { createBackup, readBackup, backupFilename } from './backup.js';
 import { createHearthReader } from './hearth/reader.js';
+import { MAX_AUDITS, prepareAuditImage, readingValues, readingsDiffer,
+         serializableAudits, summarizeAudits } from './ocr-audit.js';
 import { icon } from './icons.js';
 import { generateInsights } from './insights.js';
 import { collapseBursts } from './aggregate.js';
@@ -42,7 +44,10 @@ const RANGES = [
 const state = {
   view: 'dashboard', readings: [], profile: {}, rangeDays: 30,
   mode: 'trend', editing: null, entrySource: 'manual', selectedTags: new Set(),
+  entryAuditId: null, entryAuditPending: false, ocrAuditEnabled: false,
 };
+const OCR_AUDIT_ENABLED = 'ocrAuditEnabled';
+let ocrAuditUrls = [];
 
 /* Hiding also releases the FAB column, which is lifted while a toast is up. */
 const hideToast = () => {
@@ -148,6 +153,10 @@ window.addEventListener('popstate', (e) => {
 });
 
 function show(view, opts = {}) {
+  if (state.view === 'add' && view !== 'add' && state.entryAuditPending) {
+    void discardEntryAudit('discarded');
+  }
+  if (state.view === 'settings' && view !== 'settings') clearOcrAuditUrls();
   if (!opts.pop && view !== state.view) {
     // The dashboard is the entry the app opened on, so it never adds one of
     // its own -- going there means dropping whatever was pushed on top.
@@ -565,9 +574,11 @@ function syncPreview() {
     `MAP ${bp.meanArterialPressure(s, d)} · ${t('hemo_pulse_pressure')} ${bp.pulsePressure(s, d)}`;
 }
 
-async function openEntry(existing, source = 'manual') {
+async function openEntry(existing, source = 'manual', auditId = null) {
   state.editing = existing || null;
   state.entrySource = existing?.source || source;
+  state.entryAuditId = existing ? null : auditId;
+  state.entryAuditPending = Boolean(auditId);
   state.selectedTags = new Set(db.normalizeTags(existing?.tags).split(',').filter(Boolean));
   // Sliders start from the last reading, as in the app: the next measurement
   // is far more likely to be near the previous one than near 120/80.
@@ -609,12 +620,49 @@ async function saveReading() {
     tags: [...state.selectedTags].join(','),
     source: state.editing?.source || state.entrySource || 'manual',
   };
-  if (state.editing) await db.updateReading({ ...state.editing, ...row });
-  else await db.addReading(row);
+  const readingId = state.editing
+    ? await db.updateReading({ ...state.editing, ...row })
+    : await db.addReading(row);
+  await completeEntryAudit(row, readingId);
   toast(t('validation_save'));
   state.editing = null;
   show('dashboard');
   refresh();
+}
+
+/* An evaluation record follows one scan until the first Save or until its
+   entry screen is abandoned. Later edits are ordinary reading edits: the
+   signal we want is whether the OCR suggestion was accepted as shown. */
+async function discardEntryAudit(decision = 'discarded') {
+  const id = state.entryAuditId;
+  if (!id || !state.entryAuditPending) return;
+  state.entryAuditPending = false;
+  state.entryAuditId = null;
+  try {
+    await db.updateOcrAudit(id, { decision, decidedAt: Date.now() });
+  } catch (error) {
+    console.warn('Could not close OCR evaluation record', error);
+  }
+}
+
+async function completeEntryAudit(row, readingId) {
+  const id = state.entryAuditId;
+  if (!id || !state.entryAuditPending) return;
+  state.entryAuditPending = false;
+  state.entryAuditId = null;
+  try {
+    const audit = await db.getOcrAudit(id);
+    const finalReading = readingValues(row);
+    await db.updateOcrAudit(id, {
+      decision: 'saved',
+      adjusted: readingsDiffer(audit?.rawReading, finalReading),
+      finalReading,
+      readingId,
+      decidedAt: Date.now(),
+    });
+  } catch (error) {
+    console.warn('Could not complete OCR evaluation record', error);
+  }
 }
 
 /* -------------------------------------------------------------- profile -- */
@@ -772,11 +820,14 @@ function renderSettings() {
   $('settings-body').innerHTML = `
     <h2 style="margin:0 0 8px">${esc(t('settings_backup_now'))}</h2>
     <div id="s-backup-device"></div>
+    <h2 style="margin:22px 0 8px">${esc(t('settings_ocr_log_title'))}</h2>
+    <div id="s-ocr-audit"></div>
     <h2 style="margin:22px 0 8px">${esc(t('settings_danger_zone'))}</h2>
     <button class="link" id="s-wipe" style="color:var(--z-crisis)">${
       esc(t('settings_delete_all'))}</button>`;
 
   renderBackupSection();
+  void renderOcrAuditSection();
   const ver = $('s-version');
   if (ver) {
     ver.textContent = `build ${BUILD}`;
@@ -796,6 +847,100 @@ function renderSettings() {
     toast(t('settings_deleted_all'));
     show('dashboard'); refresh();
   });
+}
+
+function clearOcrAuditUrls() {
+  ocrAuditUrls.forEach((url) => URL.revokeObjectURL(url));
+  ocrAuditUrls = [];
+}
+
+const auditReadingLabel = (reading) => {
+  const value = readingValues(reading);
+  return value ? `${value.sys}/${value.dia}${value.pulse == null ? '' : ` · ${value.pulse}`}`
+    : t('settings_ocr_log_no_reading');
+};
+
+const auditDecisionLabel = (row) => {
+  if (row.decision === 'saved') return t(row.adjusted
+    ? 'settings_ocr_log_adjusted' : 'settings_ocr_log_unchanged');
+  if (row.decision === 'error') return t('settings_ocr_log_error');
+  return t('settings_ocr_log_not_saved');
+};
+
+const formatBytes = (bytes) => {
+  if (!bytes) return '0 KB';
+  return bytes < 1024 * 1024
+    ? `${Math.max(1, Math.round(bytes / 1024))} KB`
+    : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+async function renderOcrAuditSection() {
+  const box = $('s-ocr-audit');
+  if (!box) return;
+  const rows = await db.allOcrAudits();
+  if ($('s-ocr-audit') !== box || state.view !== 'settings') return;
+  clearOcrAuditUrls();
+  const summary = summarizeAudits(rows);
+  const bytes = rows.reduce((sum, row) => sum + (row.image?.size || 0), 0);
+  const visible = rows.slice(0, 20);
+  box.innerHTML = `
+    <label class="audit-toggle"><input type="checkbox" id="s-ocr-audit-enabled"${
+      state.ocrAuditEnabled ? ' checked' : ''}> <span>${esc(t('settings_ocr_log_enable'))}</span></label>
+    <p class="muted">${esc(t('settings_ocr_log_body', MAX_AUDITS))}</p>
+    ${rows.length ? `<p class="muted">${esc(t('settings_ocr_log_summary',
+      summary.total, summary.unchanged, summary.adjusted, summary.notSaved, formatBytes(bytes)))}</p>`
+      : `<p class="muted">${esc(t('settings_ocr_log_empty'))}</p>`}
+    <div class="actions audit-actions">
+      <button class="link" id="s-ocr-audit-export"${rows.length ? '' : ' disabled'}>${
+        esc(t('settings_ocr_log_export'))}</button>
+      <button class="link danger-link" id="s-ocr-audit-delete"${rows.length ? '' : ' disabled'}>${
+        esc(t('settings_ocr_log_delete'))}</button>
+    </div>
+    <div class="audit-list">${visible.map((row) => {
+      let imageUrl = '';
+      if (row.image) {
+        imageUrl = URL.createObjectURL(row.image);
+        ocrAuditUrls.push(imageUrl);
+      }
+      return `<details class="audit-entry">
+        <summary><span>${esc(fmtDate(row.createdAt))}</span><b>${esc(auditDecisionLabel(row))}</b></summary>
+        <div class="audit-detail">
+          ${imageUrl ? `<img src="${esc(imageUrl)}" alt="${esc(t('settings_ocr_log_picture'))}">` : ''}
+          <div><b>${esc(t('settings_ocr_log_raw'))}</b> ${esc(auditReadingLabel(row.rawReading))}</div>
+          <div><b>${esc(t('settings_ocr_log_final'))}</b> ${esc(auditReadingLabel(row.finalReading))}</div>
+          <div>${esc(row.ocrStatus || row.decision)} · ${esc(formatBytes(row.image?.size || 0))}</div>
+        </div>
+      </details>`;
+    }).join('')}</div>
+    ${rows.length > visible.length ? `<p class="muted">${esc(t('settings_ocr_log_showing',
+      visible.length, rows.length))}</p>` : ''}`;
+
+  $('s-ocr-audit-enabled').addEventListener('change', async (event) => {
+    state.ocrAuditEnabled = event.target.checked;
+    await db.setKV(OCR_AUDIT_ENABLED, state.ocrAuditEnabled);
+    if (state.ocrAuditEnabled) navigator.storage?.persist?.().catch(() => {});
+  });
+  $('s-ocr-audit-export').addEventListener('click', exportOcrAuditLog);
+  $('s-ocr-audit-delete').addEventListener('click', async () => {
+    if (!confirm(t('settings_ocr_log_delete_confirm'))) return;
+    await db.clearOcrAudits();
+    toast(t('settings_ocr_log_deleted'));
+    await renderOcrAuditSection();
+  });
+}
+
+async function exportOcrAuditLog() {
+  if (!confirm(t('settings_ocr_log_export_confirm'))) return;
+  try {
+    const entries = await serializableAudits(await db.allOcrAudits());
+    download(`bp-ocr-evaluation-${stamp()}.json`, JSON.stringify({
+      app: 'bp-digitizer', kind: 'ocr-evaluation-log', version: 1,
+      build: BUILD, exportedAt: new Date().toISOString(), entries,
+    }, null, 1), 'application/json');
+  } catch (error) {
+    console.warn('Could not export OCR evaluation log', error);
+    toast(t('settings_ocr_log_failed'));
+  }
 }
 
 /* Nudge towards installing, wherever that is actionable.
@@ -1047,6 +1192,14 @@ const OCR_STATUS_AT = [2000, 5000, 8000];
 const OCR_FILL_MS = 8000;
 
 async function scanPhoto(file) {
+  if (state.entryAuditPending) await discardEntryAudit('retaken');
+  const auditEnabled = state.ocrAuditEnabled;
+  const auditImage = auditEnabled
+    ? prepareAuditImage(file).catch((error) => {
+      console.warn('Could not prepare OCR evaluation picture', error);
+      return null;
+    })
+    : null;
   const box = $('scanning');
   const bar = box.querySelector('.scan-bar i');
   const url = URL.createObjectURL(file);
@@ -1090,17 +1243,19 @@ async function scanPhoto(file) {
   window.addEventListener('beforeunload', guard);
 
   try {
-    const { result } = await (await getOcrReader()).read(file);
+    const output = await (await getOcrReader()).read(file);
+    const { result } = output;
     if (cancelled) return;
     finish();
+    const auditId = await recordOcrAudit(file, auditImage, output);
     if (!result.reading) {
-      await openEntry(null);
+      await openEntry(null, 'manual', auditId);
       $('add-error-text').textContent = t('capture_error_unreadable');
       $('add-retake').textContent = t('validation_retake');
       $('add-error').hidden = false;
       return;
     }
-    await openEntry(null, 'ocr');
+    await openEntry(null, 'ocr', auditId);
     $('in-sys').value = result.reading.sys;
     $('in-dia').value = result.reading.dia;
     $('in-pulse').value = result.reading.pulse;
@@ -1114,7 +1269,50 @@ async function scanPhoto(file) {
     }
   } catch (error) {
     finish();
-    if (!cancelled) toast(error.message);
+    if (!cancelled) {
+      await recordOcrAudit(file, auditImage, null, error);
+      toast(error.message);
+    }
+  }
+}
+
+async function recordOcrAudit(file, imagePromise, output, error = null) {
+  if (!imagePromise) return null;
+  try {
+    const prepared = await imagePromise;
+    const result = output?.result || null;
+    const id = await db.addOcrAudit({
+      createdAt: Date.now(),
+      build: BUILD,
+      original: {
+        name: file.name || null,
+        type: file.type || null,
+        size: file.size ?? null,
+        lastModified: file.lastModified || null,
+      },
+      image: prepared?.image || null,
+      imageWidth: prepared?.width || output?.imageSize?.width || null,
+      imageHeight: prepared?.height || output?.imageSize?.height || null,
+      imageBytes: prepared?.image?.size || null,
+      elapsedMs: output?.elapsedMs ?? null,
+      inputWidth: output?.imageSize?.width ?? null,
+      inputHeight: output?.imageSize?.height ?? null,
+      ocrStatus: result?.status || (error ? 'error' : null),
+      rawResult: result,
+      rawReading: readingValues(result?.reading),
+      decision: error ? 'error' : 'pending',
+      adjusted: null,
+      finalReading: null,
+      readingId: null,
+      decidedAt: error ? Date.now() : null,
+      error: error ? String(error.message || error) : null,
+    });
+    await db.pruneOcrAudits(MAX_AUDITS);
+    return id;
+  } catch (auditError) {
+    console.warn('Could not store OCR evaluation record', auditError);
+    toast(t('settings_ocr_log_failed'));
+    return null;
   }
 }
 
@@ -1333,6 +1531,7 @@ function wire() {
 
 async function boot() {
   await loadLocale();
+  state.ocrAuditEnabled = (await db.getKV(OCR_AUDIT_ENABLED)) === true;
   applyStatic();
   wire();
   updateScanButton();

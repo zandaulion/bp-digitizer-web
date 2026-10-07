@@ -4,7 +4,7 @@
 // Owns/closes transferred bitmaps; one read at a time. Config fallback blocks
 // describe the implementation; crop geometry/fractions are currently code constants.
 import * as ort from './vendor/ort.wasm.min.mjs';
-import {assemble,decodeOutput} from './reading.js';
+import {assemble,decodeOutput,isPlausibleReading} from './reading.js';
 import {cropRegions,selectCropFallback} from './crop-fallback.js';
 import {rowRegion,normalizeRgba,selectAdaptiveFallback} from './adaptive-crop.js';
 
@@ -68,7 +68,7 @@ self.onmessage=async({data})=>{
     const started=performance.now();
     let result=await infer(bitmap);
     const full=result;
-    if(!result.reading){
+    if(!isPlausibleReading(result.reading)){
       const replays=[];
       for(const {name,rect} of cropRegions(bitmap.width,bitmap.height)){
         const crop=await createImageBitmap(bitmap,...rect);
@@ -76,7 +76,7 @@ self.onmessage=async({data})=>{
       }
       result=selectCropFallback(result,replays);
     }
-    if(!result.reading){
+    if(!isPlausibleReading(result.reading)){
       const rect=rowRegion(full.detections,bitmap.width,bitmap.height);
       if(rect){
         const [x,y,width,height]=rect;
