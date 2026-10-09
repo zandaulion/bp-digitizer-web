@@ -601,6 +601,7 @@ function setOcrConfirmation(required, confirmed = false) {
   state.entryOcrConfirmationRequired = Boolean(required);
   state.entryOcrConfirmed = Boolean(required && confirmed);
   $('ocr-confirm').hidden = !required;
+  $('view-add').classList.toggle('ocr-confirm-required', Boolean(required));
   $('ocr-confirm-check').checked = state.entryOcrConfirmed;
   $('btn-save').disabled = Boolean(required && !state.entryOcrConfirmed);
 }

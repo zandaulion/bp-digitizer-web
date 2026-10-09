@@ -36,7 +36,7 @@
   "capture_cd_capture": "Capture",
   "capture_check_values": "Check the values before saving",
   "capture_confirm_required": "Confirm that you checked all three values against the monitor",
-  "capture_confirm_values": "I checked SYS, DIA, and pulse against the monitor.",
+  "capture_confirm_values": "SYS, DIA, and pulse match the monitor.",
   "capture_error_unreadable": "Couldn't read the display. Retake the photo or enter the reading manually.",
   "capture_grant_permission": "Grant camera permission",
   "capture_permission_rationale": "Camera access is required to scan readings.",

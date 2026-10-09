@@ -73,13 +73,6 @@
       <button class="btn" id="add-retake"></button>
     </div>
 
-    <div class="ocr-confirm" id="ocr-confirm" hidden>
-      <label>
-        <input type="checkbox" id="ocr-confirm-check">
-        <span id="ocr-confirm-text"></span>
-      </label>
-    </div>
-
     <div class="card">
       <div class="reading-preview">
         <span class="big" id="preview-sys">120</span><span class="slash">/</span><span class="big" id="preview-dia">80</span>
@@ -142,8 +135,16 @@
     </div>
 
     <div class="action-bar">
-      <button class="link" id="btn-cancel"></button>
-      <button class="btn" id="btn-save"></button>
+      <div class="ocr-confirm" id="ocr-confirm" hidden>
+        <label>
+          <span id="ocr-confirm-text"></span>
+          <input type="checkbox" id="ocr-confirm-check">
+        </label>
+      </div>
+      <div class="action-buttons">
+        <button class="link" id="btn-cancel"></button>
+        <button class="btn" id="btn-save"></button>
+      </div>
     </div>
   </section>
 
