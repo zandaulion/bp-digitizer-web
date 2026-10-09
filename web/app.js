@@ -566,6 +566,7 @@ function syncPreview() {
     if (document.activeElement !== box) box.value = v;
   }
   $('preview-sys').textContent = s; $('preview-dia').textContent = d;
+  $('preview-pulse').textContent = p;
   const cat = bp.categorize(s, d);
   const badge = $('preview-cat');
   badge.textContent = t(ZONE_KEY[cat]);

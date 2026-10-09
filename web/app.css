@@ -109,12 +109,14 @@ h2{font-size:.74rem;margin:0;text-transform:uppercase;letter-spacing:.08em;
 .empty{color:var(--muted);font-size:.88rem;text-align:center;padding:26px 8px}
 
 /* --- entry ------------------------------------------------------------- */
-.reading-preview{display:flex;align-items:baseline;gap:4px;flex-wrap:wrap;
+.reading-preview{display:flex;align-items:baseline;gap:8px 18px;flex-wrap:wrap;
   justify-content:center;margin-bottom:18px}
-.big{font-size:3rem;font-weight:800;line-height:1;letter-spacing:-.03em;
+.preview-measurement{display:inline-flex;align-items:baseline;white-space:nowrap}
+.big{font-size:clamp(2.5rem,12.5vw,3rem);font-weight:800;line-height:1;letter-spacing:-.03em;
   font-variant-numeric:tabular-nums}
 .slash{font-size:2rem;color:var(--muted);margin:0 2px}
 .unit{color:var(--muted);font-size:.9rem;margin-left:6px}
+.preview-pulse .big{font-size:clamp(2.2rem,10.5vw,2.5rem)}
 .cat-badge{width:100%;text-align:center;font-size:.8rem;font-weight:700;margin-top:6px}
 .slider-row{display:block;margin-bottom:18px}
 .slider-label{display:flex;justify-content:space-between;font-size:.85rem;
