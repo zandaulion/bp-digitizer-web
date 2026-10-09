@@ -14,7 +14,7 @@ import { recencyColor, recencyGradient, recencyAt } from './palette.js';
 import { t, plural, load as loadLocale, setLocale, locale, LOCALES, fmtDate } from './i18n.js';
 import { createBackup, readBackup, backupFilename } from './backup.js';
 import { createHearthReader } from './hearth/reader.js';
-import { MAX_AUDITS, prepareAuditImage, readingValues, readingsDiffer,
+import { MAX_AUDITS, auditStage, prepareAuditImage, readingValues, readingsDiffer,
          serializableAudits, summarizeAudits } from './ocr-audit.js';
 import { icon } from './icons.js';
 import { generateInsights } from './insights.js';
@@ -45,6 +45,7 @@ const state = {
   view: 'dashboard', readings: [], profile: {}, rangeDays: 30,
   mode: 'trend', editing: null, entrySource: 'manual', selectedTags: new Set(),
   entryAuditId: null, entryAuditPending: false, ocrAuditEnabled: false,
+  entryOcrConfirmationRequired: false, entryOcrConfirmed: false,
 };
 const OCR_AUDIT_ENABLED = 'ocrAuditEnabled';
 let ocrAuditUrls = [];
@@ -592,7 +593,21 @@ async function openEntry(existing, source = 'manual', auditId = null) {
   renderTagPicker();
   syncPreview();
   $('add-error').hidden = true;      // a fresh entry carries no scan failure
+  setOcrConfirmation(!existing && source === 'ocr');
   show('add');
+}
+
+function setOcrConfirmation(required, confirmed = false) {
+  state.entryOcrConfirmationRequired = Boolean(required);
+  state.entryOcrConfirmed = Boolean(required && confirmed);
+  $('ocr-confirm').hidden = !required;
+  $('ocr-confirm-check').checked = state.entryOcrConfirmed;
+  $('btn-save').disabled = Boolean(required && !state.entryOcrConfirmed);
+}
+
+function invalidateOcrConfirmation() {
+  if (!state.entryOcrConfirmationRequired || !state.entryOcrConfirmed) return;
+  setOcrConfirmation(true, false);
 }
 
 function renderTagPicker() {
@@ -608,6 +623,10 @@ function renderTagPicker() {
 }
 
 async function saveReading() {
+  if (state.entryOcrConfirmationRequired && !state.entryOcrConfirmed) {
+    toast(t('capture_confirm_required'));
+    return;
+  }
   const systolic = Number($('in-sys').value);
   const diastolic = Number($('in-dia').value);
   if (diastolic >= systolic) { toast(t('validation_error_sys_dia')); return; }
@@ -883,6 +902,10 @@ async function renderOcrAuditSection() {
   const summary = summarizeAudits(rows);
   const bytes = rows.reduce((sum, row) => sum + (row.image?.size || 0), 0);
   const visible = rows.slice(0, 20);
+  const fieldSummary = (field) => `${summary.fields[field].correct}/${summary.fields[field].total}`;
+  const stageSummary = ['full', 'portrait', 'adaptive', 'rectified', 'unreadable', 'error']
+    .filter((stage) => summary.stages[stage])
+    .map((stage) => `${t(`settings_ocr_stage_${stage}`)} ${summary.stages[stage]}`).join(' · ');
   box.innerHTML = `
     <label class="audit-toggle"><input type="checkbox" id="s-ocr-audit-enabled"${
       state.ocrAuditEnabled ? ' checked' : ''}> <span>${esc(t('settings_ocr_log_enable'))}</span></label>
@@ -890,6 +913,9 @@ async function renderOcrAuditSection() {
     ${rows.length ? `<p class="muted">${esc(t('settings_ocr_log_summary',
       summary.total, summary.unchanged, summary.adjusted, summary.notSaved, formatBytes(bytes)))}</p>`
       : `<p class="muted">${esc(t('settings_ocr_log_empty'))}</p>`}
+    ${summary.compared ? `<p class="muted">${esc(t('settings_ocr_log_accuracy',
+      summary.exact, summary.compared, fieldSummary('sys'), fieldSummary('dia'), fieldSummary('pulse')))}</p>` : ''}
+    ${stageSummary ? `<p class="muted">${esc(t('settings_ocr_log_stages', stageSummary))}</p>` : ''}
     <div class="actions audit-actions">
       <button class="link" id="s-ocr-audit-export"${rows.length ? '' : ' disabled'}>${
         esc(t('settings_ocr_log_export'))}</button>
@@ -908,7 +934,8 @@ async function renderOcrAuditSection() {
           ${imageUrl ? `<img src="${esc(imageUrl)}" alt="${esc(t('settings_ocr_log_picture'))}">` : ''}
           <div><b>${esc(t('settings_ocr_log_raw'))}</b> ${esc(auditReadingLabel(row.rawReading))}</div>
           <div><b>${esc(t('settings_ocr_log_final'))}</b> ${esc(auditReadingLabel(row.finalReading))}</div>
-          <div>${esc(row.ocrStatus || row.decision)} · ${esc(formatBytes(row.image?.size || 0))}</div>
+          <div>${esc(t(`settings_ocr_stage_${auditStage(row)}`))} · ${
+            esc(row.ocrStatus || row.decision)} · ${esc(formatBytes(row.image?.size || 0))}</div>
         </div>
       </details>`;
     }).join('')}</div>
@@ -1264,8 +1291,6 @@ async function scanPhoto(file) {
       $('add-error-text').textContent = t('capture_check_values');
       $('add-retake').textContent = t('validation_retake');
       $('add-error').hidden = false;
-    } else {
-      toast(t('capture_check_values'));
     }
   } catch (error) {
     finish();
@@ -1420,6 +1445,7 @@ function applyStatic() {
   $('lbl-when').textContent = t('validation_timestamp');
   $('lbl-notes').textContent = t('validation_notes_label');
   $('btn-save').textContent = t('action_save');
+  $('ocr-confirm-text').textContent = t('capture_confirm_values');
   $('btn-cancel').textContent = t('action_cancel');
   renderDataNote();
   document.title = t('app_name');
@@ -1440,6 +1466,7 @@ function wireStepper(btn) {
     const next = Math.min(hi, Math.max(lo, Number(target.value) + delta));
     if (next === Number(target.value)) return stop();
     target.value = next;
+    invalidateOcrConfirmation();
     syncPreview();
   };
   const tick = () => {
@@ -1492,12 +1519,15 @@ function wire() {
   $('btn-settings-back').addEventListener('click', () => show('dashboard'));
   $('btn-help-back').addEventListener('click', () => show('dashboard'));
   $('btn-save').addEventListener('click', saveReading);
+  $('ocr-confirm-check').addEventListener('change', (event) => {
+    setOcrConfirmation(true, event.target.checked);
+  });
   $('scan-file').addEventListener('change', (e) => {
     if (e.target.files[0]) scanPhoto(e.target.files[0]);
     e.target.value = '';
   });
   for (const id of ['in-sys', 'in-dia', 'in-pulse']) {
-    $(id).addEventListener('input', syncPreview);
+    $(id).addEventListener('input', () => { invalidateOcrConfirmation(); syncPreview(); });
   }
   document.querySelectorAll('.step').forEach(wireStepper);
   // Keep the save bar above the soft keyboard. Sticky positions against the
@@ -1522,6 +1552,7 @@ function wire() {
       if (!Number.isFinite(n) || $(box).value === '') return;   // mid-edit
       const lo = Number($(slider).min), hi = Number($(slider).max);
       $(slider).value = Math.min(hi, Math.max(lo, n));
+      invalidateOcrConfirmation();
       syncPreview();
     });
     // Clamp only on blur, so typing "9" on the way to "95" is not rewritten.

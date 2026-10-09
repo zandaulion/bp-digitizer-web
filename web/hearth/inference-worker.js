@@ -7,6 +7,7 @@ import * as ort from './vendor/ort.wasm.min.mjs';
 import {assemble,decodeOutput,isPlausibleReading} from './reading.js';
 import {cropRegions,selectCropFallback} from './crop-fallback.js';
 import {rowRegion,normalizeRgba,selectAdaptiveFallback} from './adaptive-crop.js';
+import {createRectifiedViews,selectRectifiedFallback} from './display-rectification.js';
 
 ort.env.wasm.wasmPaths=new URL('./vendor/',import.meta.url).href;
 ort.env.wasm.numThreads=1;
@@ -93,6 +94,22 @@ self.onmessage=async({data})=>{
           result=selected;
         }
       }
+    }
+    if(!isPlausibleReading(result.reading)&&config.displayRectificationFallback?.enabled){
+      const views=createRectifiedViews(bitmap,full.detections),replays=[];
+      for(const view of views){
+        const {name,points,canvas}=view;
+        const ctx=canvas.getContext('2d',{willReadFrequently:true});
+        const original=ctx.getImageData(0,0,canvas.width,canvas.height).data;
+        replays.push({name:`${name}-original`,points,result:await infer(canvas)});
+        ctx.putImageData(new ImageData(normalizeRgba(original,canvas.width,canvas.height,.04),canvas.width,canvas.height),0,0);
+        replays.push({name:`${name}-normalized`,points,result:await infer(canvas)});
+      }
+      const selected=selectRectifiedFallback(full,replays);
+      result=selected===full?{...full,rectificationAttempt:{
+        candidateDisplays:views.length,
+        plausibleViews:replays.filter(view=>isPlausibleReading(view.result.reading)).length,
+      }}:selected;
     }
     self.postMessage({type:'result',id,result,elapsedMs:Math.round(performance.now()-started)});
   }catch(error){self.postMessage({type:'error',id,message:error.message});}

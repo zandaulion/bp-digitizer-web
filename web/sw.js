@@ -11,7 +11,7 @@ const SHELL = ['/', '/index.html', '/app.css', '/app.js', '/db.js', '/bp.js', '/
                // Local OCR: implementation, pinned runtime and matching models.
                '/hearth/reader.js', '/hearth/inference-worker.js',
                '/hearth/reading.js', '/hearth/crop-fallback.js',
-               '/hearth/adaptive-crop.js',
+               '/hearth/adaptive-crop.js', '/hearth/display-rectification.js',
                '/hearth/vendor/ort.wasm.min.mjs',
                '/hearth/vendor/ort-wasm-simd-threaded.mjs',
                '/hearth/vendor/ort-wasm-simd-threaded.wasm',

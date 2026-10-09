@@ -23,13 +23,42 @@ export function readingsDiffer(raw, final) {
   return a.sys !== b.sys || a.dia !== b.dia || a.pulse !== b.pulse;
 }
 
+export function auditStage(row) {
+  if (row?.decision === 'error' || row?.ocrStatus === 'error') return 'error';
+  const method = row?.rawResult?.cropFallback?.method;
+  if (method === 'display-rectification-consensus') return 'rectified';
+  if (method === 'two-agreeing-row-crops-light-normalized') return 'adaptive';
+  if (method === 'two-agreeing-center-crops') return 'portrait';
+  return readingValues(row?.rawReading || row?.rawResult?.reading) ? 'full' : 'unreadable';
+}
+
 export function summarizeAudits(rows) {
   const saved = rows.filter((row) => row.decision === 'saved');
+  const compared = saved.map((row) => ({
+    raw: readingValues(row.rawReading || row.rawResult?.reading),
+    final: readingValues(row.finalReading),
+  })).filter((pair) => pair.raw && pair.final);
+  const fields = Object.fromEntries(['sys', 'dia', 'pulse'].map((field) => {
+    const eligible = compared.filter((pair) => pair.raw[field] != null && pair.final[field] != null);
+    return [field, {
+      correct: eligible.filter((pair) => pair.raw[field] === pair.final[field]).length,
+      total: eligible.length,
+    }];
+  }));
+  const stages = {};
+  for (const row of rows) {
+    const stage = auditStage(row);
+    stages[stage] = (stages[stage] || 0) + 1;
+  }
   return {
     total: rows.length,
     unchanged: saved.filter((row) => row.adjusted === false).length,
     adjusted: saved.filter((row) => row.adjusted === true).length,
     notSaved: rows.length - saved.length,
+    compared: compared.length,
+    exact: compared.filter((pair) => !readingsDiffer(pair.raw, pair.final)).length,
+    fields,
+    stages,
   };
 }
 

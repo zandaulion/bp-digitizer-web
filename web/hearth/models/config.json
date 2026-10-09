@@ -47,6 +47,12 @@
     ],
     "acceptance": "Two plausible complete readings must agree. Both must be candidates for candidate output; any low-confidence view keeps Please review status. Scores are not correctness probabilities."
   },
+  "displayRectificationFallback": {
+    "enabled": true,
+    "experimental": true,
+    "after": "No plausible full-frame, central-crop or adaptive normalized reading",
+    "acceptance": "At least two perspective-corrected views must agree and no plausible view may disagree. Every recovered reading is returned for manual review."
+  },
   "detectorSha256": "8a7dafaed0aa9056308171d57d024343049cff4ba1a9adfc54d274c38a31fb07",
   "digitsSha256": "f41a41f9138c7c80d7e7fa1c3ed5afe93c3f5beacb3efd861ba3222b597cd732"
 }

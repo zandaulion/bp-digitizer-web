@@ -37,13 +37,19 @@ The camera reader is integrated from
 revision `af4573d328006de1b599ef3c5690dfaaa0810cea`. It uses ONNX Runtime Web
 1.30.0, a detector and a digit recognizer in a module worker. The matching
 models, thresholds and runtime are shipped under `web/hearth/` and cached as a
-single release.
+single release. The experimental display-rectification fallback is a compact
+browser port of the regression candidate documented upstream at revision
+`941d4a36892938f3502d433db6b332d8c6c72dd4`.
 
 The reader supports upright, common three-row SYS/DIA/pulse displays. It tries
 the full image, conservative central crops and an adaptive lighting-normalized
-crop. A result is a candidate, a reading needing extra review, or a refusal.
-The app always opens editable fields and requires the user to save explicitly;
-it never guesses missing values or stores an OCR result automatically.
+crop. After those refuse an image, an experimental final pass may find and
+perspective-correct a display outline. It returns a reading only when at least
+two views agree and no plausible view disagrees, and every result recovered by
+this pass is marked for review. A result is a candidate, a reading needing
+extra review, or a refusal. The app always opens editable fields, requires the
+user to confirm all three values against the monitor, and requires an explicit
+save; it never guesses missing values or stores an OCR result automatically.
 
 More than 90% precision on new real-world captures has not been established.
 Every value must be checked against the monitor. Detection scores are not
@@ -53,6 +59,11 @@ The two models total about 10.9 MB. The first online load downloads those models
 and the WebAssembly runtime; later reads can run offline.
 
 ### OCR evaluation log
+
+When explicitly enabled, the local evaluation log can summarize corrections by
+SYS, DIA and pulse and show which inference stage produced each result. Photos,
+predictions and corrections remain in the browser until the user exports or
+deletes them.
 
 Settings has an opt-in, device-local evaluation log for measuring OCR during a
 trial. When enabled, it retains up to 100 resized, EXIF-stripped scan pictures,
