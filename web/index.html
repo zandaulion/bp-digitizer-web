@@ -62,7 +62,7 @@
   <!-- add reading --------------------------------------------------------->
   <section class="view" id="view-add" hidden>
     <header class="hero">
-      <button class="icon-btn" id="btn-add-back" aria-label="Back">←</button>
+      <button class="icon-btn" id="btn-add-back">←</button>
       <h1 id="add-title"></h1>
     </header>
 
@@ -77,10 +77,10 @@
       <div class="reading-preview">
         <span class="preview-measurement">
           <span class="big" id="preview-sys">120</span><span class="slash">/</span><span class="big" id="preview-dia">80</span>
-          <span class="unit">mmHg</span>
+          <span class="unit" id="preview-pressure-unit"></span>
         </span>
         <span class="preview-measurement preview-pulse">
-          <span class="big" id="preview-pulse">70</span><span class="unit">bpm</span>
+          <span class="big" id="preview-pulse">70</span><span class="unit" id="preview-pulse-unit"></span>
         </span>
         <span class="cat-badge" id="preview-cat"></span>
       </div>
@@ -156,7 +156,7 @@
   <!-- profile ------------------------------------------------------------->
   <section class="view" id="view-profile" hidden>
     <header class="hero">
-      <button class="icon-btn" id="btn-profile-back" aria-label="Back">←</button>
+      <button class="icon-btn" id="btn-profile-back">←</button>
       <h1 id="profile-title"></h1>
     </header>
     <div class="card" id="profile-form"></div>
@@ -165,7 +165,7 @@
   <!-- settings ------------------------------------------------------------>
   <section class="view" id="view-settings" hidden>
     <header class="hero">
-      <button class="icon-btn" id="btn-settings-back" aria-label="Back">←</button>
+      <button class="icon-btn" id="btn-settings-back">←</button>
       <h1 id="settings-title"></h1>
     </header>
     <div class="card" id="settings-body"></div>
@@ -175,7 +175,7 @@
   <!-- Help: a screen, as in the Android app, not a sheet. -->
   <section class="view" id="view-help" hidden>
     <header class="hero">
-      <button class="icon-btn" id="btn-help-back" aria-label="Back">←</button>
+      <button class="icon-btn" id="btn-help-back">←</button>
       <h1 id="help-title"></h1>
     </header>
     <div class="help-list" id="help-list"></div>

@@ -14,6 +14,7 @@
   "activity_sedentary": "Sedentary",
   "activity_very_active": "Very active",
   "app_name": "wBP Digitizer",
+  "app_updated": "wBP Digitizer updated to the latest version",
   "bmi_normal": "Normal",
   "bmi_obese": "Obese",
   "bmi_overweight": "Overweight",
@@ -91,6 +92,7 @@
     "one": "Imported {0} reading",
     "other": "Imported {0} readings"
   },
+  "dashboard_snack_import_skipped": "Skipped {0}",
   "dashboard_snack_synced": {
     "one": "Synced {0} reading to Health Connect",
     "other": "Synced {0} readings to Health Connect"
@@ -327,6 +329,7 @@
   "settings_restore_wrong": "Wrong passphrase — nothing was changed.",
   "settings_server_absent": "No server is configured for this installation. Everything else still works.",
   "settings_server_checking": "Checking…",
+  "settings_build_format": "Build {0}",
   "settings_server_link": "Link",
   "settings_server_linked": "Server features enabled",
   "settings_server_linked_as": "Linked as {0}",
@@ -348,6 +351,8 @@
   "tag_stress": "Stress",
   "unit_imperial": "Imperial",
   "unit_metric": "Metric",
+  "unit_mmhg": "mmHg",
+  "unit_bpm": "bpm",
   "validation_cd_captured_fullscreen": "Captured reading (fullscreen)",
   "validation_cd_captured_image": "Captured reading",
   "validation_cd_decrease": "Decrease {0}",

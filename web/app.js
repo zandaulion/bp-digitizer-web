@@ -543,7 +543,7 @@ function attachCursor(svg, rows, X) {
     cursor.style.display = '';
     readout.hidden = false;
     readout.innerHTML = `${esc(fmtDate(p.timestamp))}<br><b>${p.systolic}/${p.diastolic}</b>`
-      + (p.pulse ? ` · ${p.pulse} bpm` : '');
+      + (p.pulse ? esc(t('dashboard_reading_pulse_format', p.pulse)) : '');
   };
   const hide = () => { cursor.style.display = 'none'; readout.hidden = true; };
   svg.onpointermove = at; svg.onpointerdown = at; svg.onpointerleave = hide;
@@ -572,8 +572,8 @@ function syncPreview() {
   badge.textContent = t(ZONE_KEY[cat]);
   badge.style.color = ZONE_COLOR[cat];
   $('preview-sys').style.color = ZONE_COLOR[cat];
-  $('hemo').textContent =
-    `MAP ${bp.meanArterialPressure(s, d)} · ${t('hemo_pulse_pressure')} ${bp.pulsePressure(s, d)}`;
+  $('hemo').textContent = t('reading_hemodynamics_format',
+    bp.meanArterialPressure(s, d), bp.pulsePressure(s, d));
 }
 
 async function openEntry(existing, source = 'manual', auditId = null) {
@@ -793,7 +793,7 @@ async function exportPdfDownload() {
   try {
     await exportPdfFile(rows, { smooth: !!state.smooth });
   } catch (e) {
-    toast(e.message);
+    toast(t('dashboard_snack_export_failed'));
   }
 }
 
@@ -825,7 +825,8 @@ async function importFile(file) {
       .map((r) => ({ ...r, tags: db.normalizeTags(r.tags) }));
     if (!rows.length) { toast(t('dashboard_snack_import_none')); return; }
     const { added, skipped } = await db.importReadings(rows);
-    toast(added ? t('dashboard_snack_imported', added) + (skipped ? ` (${skipped}?)` : '')
+    toast(added ? plural('dashboard_snack_imported', added)
+                  + (skipped ? ` · ${t('dashboard_snack_import_skipped', skipped)}` : '')
                 : t('dashboard_snack_import_none'));
     refresh();
   } catch (e) {
@@ -851,15 +852,15 @@ function renderSettings() {
   void renderOcrAuditSection();
   const ver = $('s-version');
   if (ver) {
-    ver.textContent = `build ${BUILD}`;
+    ver.textContent = t('settings_build_format', BUILD);
     ver.onclick = async () => {
-      ver.textContent = 'checking…';
+      ver.textContent = t('settings_server_checking');
       try {
         const regs = await navigator.serviceWorker.getRegistrations();
         await Promise.all(regs.map((r) => r.update()));
         for (const k of await caches.keys()) await caches.delete(k);
         location.reload();
-      } catch { ver.textContent = `build ${BUILD}`; }
+      } catch { ver.textContent = t('settings_build_format', BUILD); }
     };
   }
   $('s-wipe').addEventListener('click', async () => {
@@ -1298,7 +1299,7 @@ async function scanPhoto(file) {
     finish();
     if (!cancelled) {
       await recordOcrAudit(file, auditImage, null, error);
-      toast(error.message);
+      toast(t('capture_error_unreadable'));
     }
   }
 }
@@ -1449,6 +1450,12 @@ function applyStatic() {
   $('btn-save').textContent = t('action_save');
   $('ocr-confirm-text').textContent = t('capture_confirm_values');
   $('btn-cancel').textContent = t('action_cancel');
+  $('preview-pressure-unit').textContent = t('unit_mmhg');
+  $('preview-pulse-unit').textContent = t('unit_bpm');
+  for (const id of ['btn-add-back', 'btn-profile-back', 'btn-settings-back', 'btn-help-back']) {
+    $(id).setAttribute('aria-label', t('action_back'));
+    $(id).title = t('action_back');
+  }
   renderDataNote();
   document.title = t('app_name');
 }
@@ -1580,6 +1587,7 @@ async function boot() {
   show('dashboard');
   installUpdates({
     appName: 'wBP Digitizer',
+    message: t('app_updated'),
     toast: (message) => toast(message)
   });
 }
