@@ -446,4 +446,4 @@ input[type=range]::-moz-range-thumb{width:26px;height:26px;border:2px solid var(
 .ocr-confirm span{flex:1}
 .ocr-confirm input{flex:none;width:22px;height:22px;margin:0;accent-color:var(--accent)}
 #view-add{padding-bottom:72px}
-#view-add.ocr-confirm-required{padding-bottom:126px}
+#view-add.ocr-confirm-required{padding-bottom:140px}
