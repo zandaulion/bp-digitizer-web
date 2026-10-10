@@ -2,31 +2,44 @@
    live in IndexedDB, so the only thing the cache has to hold is the shell. */
 'use strict';
 const VERSION = '__BUILD_VERSION__';
-const CACHE = 'bp-shell-' + VERSION;
-const SHELL = ['/', '/index.html', '/app.css', '/app.js', '/db.js', '/bp.js', '/i18n.js',
-               '/backup.js', '/aggregate.js', '/icons.js', '/insights.js', '/palette.js',
-               '/ocr-audit.js', '/pdf.js', '/pwa-update.js', '/sw-update.js',
-               '/manifest.webmanifest', '/icons/icon.svg', '/icons/icon-192.png',
-               '/icons/icon-512.png', '/icons/maskable-512.png',
+const BASE = new URL('./', self.location.href);
+const SCOPE_KEY = BASE.pathname.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '');
+// Preserve the legacy root cache prefix so an update deletes the old shell.
+// A project-path install gets a scoped prefix and cannot remove another PWA's
+// cache on the same github.io origin.
+const CACHE_PREFIX = BASE.pathname === '/' ? 'bp-shell-' : `bp-shell-${SCOPE_KEY}-`;
+const CACHE = CACHE_PREFIX + VERSION;
+const SHELL = ['./', './index.html', './app.css', './app.js', './db.js', './bp.js', './i18n.js',
+               './backup.js', './aggregate.js', './icons.js', './insights.js', './palette.js',
+               './ocr-audit.js', './pdf.js', './pwa-update.js', './sw-update.js',
+               './manifest.webmanifest', './icons/icon.svg', './icons/icon-192.png',
+               './icons/icon-512.png', './icons/maskable-512.png',
                // Local OCR: implementation, pinned runtime and matching models.
-               '/hearth/reader.js', '/hearth/inference-worker.js',
-               '/hearth/reading.js', '/hearth/crop-fallback.js',
-               '/hearth/adaptive-crop.js', '/hearth/display-rectification.js',
-               '/hearth/vendor/ort.wasm.min.mjs',
-               '/hearth/vendor/ort-wasm-simd-threaded.mjs',
-               '/hearth/vendor/ort-wasm-simd-threaded.wasm',
-               '/hearth/models/bp-detector.onnx',
-               '/hearth/models/bp-digits.onnx',
-               '/hearth/models/config.json'];
+               './hearth/reader.js', './hearth/inference-worker.js',
+               './hearth/reading.js', './hearth/crop-fallback.js',
+               './hearth/adaptive-crop.js', './hearth/display-rectification.js',
+               './hearth/vendor/ort.wasm.min.mjs',
+               './hearth/vendor/ort-wasm-simd-threaded.mjs',
+               './hearth/vendor/ort-wasm-simd-threaded.wasm',
+               './hearth/models/bp-detector.onnx',
+               './hearth/models/bp-digits.onnx',
+               './hearth/models/config.json'];
 
-importScripts('/sw-update.js');
+const assetUrl = (path) => new URL(path, BASE);
+const canonicalUrl = (request) => {
+  const url = new URL(request.url);
+  url.search = '';
+  return url;
+};
+
+importScripts(assetUrl('./sw-update.js').href);
 
 self.addEventListener('install', (e) => {
   e.waitUntil((async () => {
     const c = await caches.open(CACHE);
-    await c.addAll(SHELL.map((url) => new Request(url, { cache: 'reload' })));
+    await c.addAll(SHELL.map((url) => new Request(assetUrl(url), { cache: 'reload' })));
     // Locales are fetched on demand; pre-cache only the ones likely needed.
-    await c.addAll(['/i18n/en.json']).catch(() => {});
+    await c.addAll([assetUrl('./i18n/en.json').href]).catch(() => {});
     // Take over immediately; combined with controllerchange in the page this
     // turns a deploy into a single automatic reload.
     self.skipWaiting();
@@ -36,7 +49,7 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.filter((k) => k.startsWith('bp-shell-') && k !== CACHE)
+    await Promise.all(keys.filter((k) => k.startsWith(CACHE_PREFIX) && k !== CACHE)
                           .map((k) => caches.delete(k)));
     await self.clients.claim();
     // Tell the open windows rather than reloading them from under whatever
@@ -60,10 +73,10 @@ async function networkFirst(req, cache) {
     if (res.ok) cache.put(req, res.clone());
     return res;
   } catch (err) {
-    const hit = await cache.match(req) || await cache.match(new URL(req.url).pathname);
+    const hit = await cache.match(req) || await cache.match(canonicalUrl(req).href);
     if (hit) return hit;
     if (req.mode === 'navigate') {
-      const shell = await cache.match('/index.html');
+      const shell = await cache.match(assetUrl('./index.html').href);
       if (shell) return shell;
     }
     throw err;
@@ -75,7 +88,7 @@ async function cacheFirst(req, cache) {
   // imports carry ?v=<build>. Falling back to the canonical entry makes the
   // very first installed load work offline, before a controlled page has had
   // a chance to request and cache every versioned URL.
-  const hit = await cache.match(req) || await cache.match(new URL(req.url).pathname);
+  const hit = await cache.match(req) || await cache.match(canonicalUrl(req).href);
   if (hit) return hit;
   const res = await fetch(req);
   if (res.ok) cache.put(req, res.clone());

@@ -65,14 +65,15 @@ function defaultToast(message) {
  *        Return true while reloading would lose the person's work. The update
  *        waits until this goes false, or until they leave the tab -- at which
  *        point nothing is on screen to lose.
- * @param {string} [options.scriptUrl]  Defaults to '/sw.js'.
+ * @param {string|URL} [options.scriptUrl]
+ *        Defaults to sw.js beside this module, so project-path hosting works.
  */
 export function installUpdates({
   appName = 'The app',
   message = null,
   toast = defaultToast,
   isBusy = () => false,
-  scriptUrl = '/sw.js'
+  scriptUrl = new URL('./sw.js', import.meta.url)
 } = {}) {
   if (!('serviceWorker' in navigator)) return;
 

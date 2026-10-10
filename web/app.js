@@ -1,4 +1,4 @@
-import { installUpdates } from '/pwa-update.js';
+import { installUpdates } from './pwa-update.js';
 /* BP Digitizer — local-first PWA.
    Readings live in IndexedDB, OCR runs locally, and encrypted backups are
    exported as files chosen by the user. Nothing is uploaded. */
@@ -1198,7 +1198,9 @@ let ocrReaderPromise = null;
 
 function getOcrReader() {
   if (!ocrReaderPromise) {
-    ocrReaderPromise = createHearthReader(`/hearth/inference-worker.js?v=${BUILD}`)
+    const workerUrl = new URL('./hearth/inference-worker.js', import.meta.url);
+    workerUrl.searchParams.set('v', BUILD);
+    ocrReaderPromise = createHearthReader(workerUrl)
       .catch((error) => {
         ocrReaderPromise = null;
         throw error;

@@ -28,7 +28,18 @@ python3 -m http.server -d web 8080
 Open <http://127.0.0.1:8080/>. Camera capture in deployment requires HTTPS;
 localhost is treated as a secure development context.
 
-There is no build step. `deploy.sh` copies `web/` to `/var/www/bp` by default,
+## GitHub Pages
+
+Every push to `main` publishes the production artifact to
+<https://zandaulion.github.io/bp-digitizer-web/>. The application uses
+scope-relative asset, worker, manifest and service-worker URLs, so it works at
+that project path as well as at the root of another static host.
+
+The workflow under `.github/workflows/pages.yml` runs the same version-stamping
+deployment used by the standalone server and publishes only the resulting
+static `web/` artifact.
+
+There is no compilation step. `deploy.sh` copies `web/` to `/var/www/bp` by default,
 stamps a content-derived build version and versions module imports so an
 installed PWA cannot mix old and new code.
 

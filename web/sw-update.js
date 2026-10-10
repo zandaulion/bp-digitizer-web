@@ -7,7 +7,7 @@
 //
 // In the app's sw.js:
 //
-//     importScripts('/sw-update.js');
+//     importScripts(new URL('./sw-update.js', self.location.href).href);
 //
 //     self.addEventListener('activate', (e) => {
 //       e.waitUntil((async () => {

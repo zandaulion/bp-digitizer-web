@@ -22,10 +22,12 @@ function pick() {
 
 export async function load(locale) {
   current = locale || pick();
-  const selected = await fetch(`/i18n/${current}.json`).then((res) => res.json());
+  const selectedUrl = new URL(`./i18n/${current}.json`, import.meta.url);
+  const selected = await fetch(selectedUrl).then((res) => res.json());
   // Small experimental features can ship safely before all twelve catalogues
   // are updated. English is the visible fallback instead of an internal key.
-  const fallback = current === 'en' ? {} : await fetch('/i18n/en.json').then((res) => res.json());
+  const fallback = current === 'en' ? {} : await fetch(new URL('./i18n/en.json', import.meta.url))
+    .then((res) => res.json());
   strings = { ...fallback, ...selected };
   document.documentElement.lang = current;
   document.documentElement.dir = RTL.has(current) ? 'rtl' : 'ltr';
