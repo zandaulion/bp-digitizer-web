@@ -4,6 +4,11 @@ A local-first progressive web app for recording, charting and exporting blood
 pressure readings. Readings live in the browser's IndexedDB. Camera recognition
 runs locally in a browser worker; photos and readings are not uploaded.
 
+**[Open wBP Digitizer](https://zandaulion.github.io/bp-digitizer-web/)**
+
+The hosted app uses GitHub Pages at the repository's standard project URL. It
+does not need a custom domain, application server, account or invitation.
+
 ## Screenshots
 
 All readings and profile details shown below are synthetic demonstration data.
@@ -38,6 +43,25 @@ that project path as well as at the root of another static host.
 The workflow under `.github/workflows/pages.yml` runs the same version-stamping
 deployment used by the standalone server and publishes only the resulting
 static `web/` artifact.
+
+To publish a fork without buying a domain:
+
+1. Open the repository's **Settings → Pages** page.
+2. Under **Build and deployment**, select **GitHub Actions** as the source.
+3. Push to `main`, or manually run the **Deploy GitHub Pages** workflow.
+
+The resulting address is
+`https://<github-user>.github.io/<repository-name>/`. GitHub provides HTTPS and
+serves the app directly; the optional custom-domain field can remain empty.
+
+Browser storage belongs to the exact site address. Readings already stored on a
+Tailscale, localhost or other deployment do not automatically appear on the
+GitHub Pages deployment. Use the encrypted backup and restore controls to move
+them, and keep exported backup files private.
+
+The Pages deployment is static. GitHub serves the files but receives no
+application API requests: OCR, readings, profile data and evaluation telemetry
+remain in the browser unless the user explicitly downloads an export.
 
 There is no compilation step. `deploy.sh` copies `web/` to `/var/www/bp` by default,
 stamps a content-derived build version and versions module imports so an
