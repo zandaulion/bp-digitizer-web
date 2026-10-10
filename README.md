@@ -4,6 +4,14 @@ A local-first progressive web app for recording, charting and exporting blood
 pressure readings. Readings live in the browser's IndexedDB. Camera recognition
 runs locally in a browser worker; photos and readings are not uploaded.
 
+## Screenshots
+
+All readings and profile details shown below are synthetic demonstration data.
+
+| Dashboard | Add a reading | Health profile |
+| --- | --- | --- |
+| ![Dashboard with a synthetic 30-day blood-pressure trend](docs/screenshots/dashboard-synthetic.png) | ![Reading form populated with synthetic values](docs/screenshots/add-reading-synthetic.png) | ![Health profile populated with synthetic details](docs/screenshots/profile-synthetic.png) |
+
 The app has no application backend, accounts, invitation codes, API keys or
 usage quotas. Static HTTPS hosting is needed for installation and updates. Once
 the service worker has cached the app, OCR runtime and models, normal use works
