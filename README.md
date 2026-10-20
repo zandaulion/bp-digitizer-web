@@ -9,6 +9,11 @@ runs locally in a browser worker; photos and readings are not uploaded.
 The hosted app uses GitHub Pages at the repository's standard project URL. It
 does not need a custom domain, application server, account or invitation.
 
+
+[Run locally](#run-locally) · [GitHub Pages setup](#github-pages)
+· [Backup and restore](#on-device-backup) · [Local checks](#local-checks)
+· [Project overview](https://zandaulion.com/bpdigitizer.html#web-version)
+
 ## Screenshots
 
 All readings and profile details shown below are synthetic demonstration data.
@@ -184,3 +189,23 @@ license and notices under `web/hearth/vendor/`.
 
 See the upstream Hearth repository for model provenance, evaluation limitations,
 training-data attribution and the complete integration documentation.
+
+## Local checks
+
+Use Node.js 24 or newer for the dependency-free JavaScript test runner:
+
+```bash
+node --test 'test/*.test.mjs'
+```
+
+These tests exercise synthetic reading, audit, localization and hosting cases.
+Manual camera testing still needs a compatible browser and a secure context.
+
+
+## Support and contributions
+
+Use this repository’s Issues for reproducible bugs and focused feature requests. Include the version, relevant runtime/browser, expected behavior and a minimal synthetic example. Remove credentials, personal records, device identifiers and deployment-specific values before sharing logs or screenshots.
+
+Run the local checks above and verify both localhost and a subdirectory deployment for URL/worker changes. Use synthetic readings and images; exported evaluation logs can contain private health data.
+
+Keep changes focused and update the affected documentation. Security-sensitive reports should follow [SECURITY.md](SECURITY.md).
