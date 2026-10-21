@@ -9,6 +9,20 @@ runs locally in a browser worker; photos and readings are not uploaded.
 The hosted app uses GitHub Pages at the repository's standard project URL. It
 does not need a custom domain, application server, account or invitation.
 
+[Download the v0.1.0 self-hosting ZIP](https://github.com/zandaulion/bp-digitizer-web/releases/tag/v0.1.0)
+to run the same static app from your own origin. Extract it and serve its `site/`
+directory with a static HTTPS host. For a loopback trial, run
+`python3 -m http.server -d site 8080` from the extracted folder and open
+<http://127.0.0.1:8080/>. The ZIP includes the OCR models and browser runtime;
+no build, npm install, account or API key is needed. Do not open `index.html`
+directly as a `file:` URL: the service worker and model fetches need HTTP(S).
+
+Browser storage belongs to its exact origin. If you have readings in the hosted
+app or an earlier self-hosted origin, make an encrypted `.hbp` backup there and
+restore it on the new origin; merely moving the site files does not move data.
+Keep the backup and its passphrase private. Remote-device camera capture and PWA
+installation require HTTPS, while localhost is a secure development context.
+
 
 [Run locally](#run-locally) · [GitHub Pages setup](#github-pages)
 · [Backup and restore](#on-device-backup) · [Local checks](#local-checks)
@@ -182,7 +196,8 @@ deploy.sh             static-file deployment
 
 ## Licensing
 
-The original wBP Digitizer code is GPL-3.0. The integrated Hearth OCR source,
+The original wBP Digitizer code is GPL-3.0-or-later; see [licensing details](LICENSING.md).
+The integrated Hearth OCR source,
 model weights and generated assets are AGPL-3.0-only and retain their notices in
 `web/hearth/LICENSE` and `web/hearth/NOTICE`. ONNX Runtime retains its MIT
 license and notices under `web/hearth/vendor/`.

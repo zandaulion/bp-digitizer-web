@@ -1,10 +1,12 @@
 Hearth BP monitor OCR
 Copyright (C) 2026 zandaulion
 
-Original source code, documentation and generated app icons are licensed
+The integrated Hearth source and two reviewed ONNX model exports are licensed
 under the GNU Affero General Public License, version 3 only (AGPL-3.0-only).
 This software is provided WITHOUT ANY WARRANTY; see LICENSE.
 
-Third-party dependencies and their license/notice files retain their own terms.
-See prototype/THIRD_PARTY.md. Dataset images, starter code and trained weights
-are not included in this repository.
+ONNX Runtime Web 1.30.0 retains its MIT license and notice in vendor/.
+The model weights are included. Raw dataset images, owner-provided training
+photos, per-photo annotations and the excluded starter implementation are not.
+Model provenance, checksums and limitations are documented in the upstream
+model card: https://github.com/zandaulion/hearth-bp-ocr/blob/v0.1.0/docs/MODEL_CARD.md

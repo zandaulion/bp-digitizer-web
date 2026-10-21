@@ -8,7 +8,7 @@ DEST="${DEST:-/var/www/bp}"
 # The build scripts are part of the version: they decide how assets are
 # rewritten, so a change to them must produce new urls. Otherwise a fixed
 # build ships under a hash clients already have cached.
-VERSION="$(find "$ROOT/web" "$ROOT/bin" "$ROOT/deploy.sh" -type f \
+VERSION="$(cd "$ROOT" && find web bin deploy.sh -type f \
   -exec sha256sum {} + | sort -k2 | sha256sum | cut -c1-12)"
 sudo mkdir -p "$DEST"
 sudo chown "$(id -un):$(id -gn)" "$DEST"
