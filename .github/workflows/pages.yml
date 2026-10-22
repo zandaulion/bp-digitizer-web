@@ -24,6 +24,14 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+
+      - name: Run tests before publishing
+        run: node --test test/*.test.mjs
+
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 

@@ -407,6 +407,9 @@ function drawChart() {
   svg.setAttribute('height', H);
   let rows = inRange().slice().sort((a, b) => a.timestamp - b.timestamp);
   if (state.smooth) rows = collapseBursts(rows);
+  // role="img" needs a name; the view's own label is already translated.
+  svg.setAttribute('aria-label', t(!rows.length ? 'chart_no_readings'
+    : state.mode === 'scatter' ? 'chart_view_scatter' : 'chart_view_trend'));
   if (!rows.length) {
     svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" class="axis">${
       esc(t('chart_no_readings'))}</text>`;
