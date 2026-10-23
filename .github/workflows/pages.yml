@@ -41,7 +41,7 @@ jobs:
         run: ./deploy.sh
 
       - name: Upload GitHub Pages artifact
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v5
         with:
           # A rerun uploads another artifact; keep its name specific to this attempt.
           name: github-pages-${{ github.run_id }}-${{ github.run_attempt }}
