@@ -332,6 +332,11 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .camera .cam-shutter{position:absolute;left:50%;transform:translateX(-50%);
   bottom:calc(env(safe-area-inset-bottom) + 32px);width:72px;height:72px}
 .cam-shutter:disabled{opacity:.6}
+/* Gallery sits level with the shutter, halfway to the left edge. */
+.cam-gallery{position:absolute;left:calc(25% - 28px);width:56px;height:56px;
+  bottom:calc(env(safe-area-inset-bottom) + 40px);display:grid;place-items:center;
+  border:0;border-radius:50%;background:rgba(0,0,0,.4);color:#fff;cursor:pointer}
+.cam-gallery svg{width:28px;height:28px}
 .cam-denied{position:absolute;inset:0;display:grid;place-content:center;gap:16px;
   justify-items:center;padding:24px;color:#fff;text-align:center}
 .cam-denied p{margin:0}

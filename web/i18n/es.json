@@ -35,6 +35,7 @@
   "bp_zone_optimal": "Óptima",
   "bp_zone_very_high": "Muy alta",
   "capture_cd_capture": "Capturar",
+  "capture_cd_gallery": "Elegir de la galería",
   "capture_check_values": "Comprueba los valores antes de guardar",
   "capture_confirm_required": "Confirma que comprobaste los tres valores en el tensiómetro",
   "capture_confirm_values": "SYS, DIA y pulso coinciden con el tensiómetro.",

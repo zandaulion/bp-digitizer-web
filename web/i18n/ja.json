@@ -35,6 +35,7 @@
   "bp_zone_optimal": "最適",
   "bp_zone_very_high": "非常に高い",
   "capture_cd_capture": "撮影",
+  "capture_cd_gallery": "ギャラリーから選択",
   "capture_check_values": "保存前に数値を確認してください",
   "capture_confirm_required": "モニターで3つの値をすべて確認してください",
   "capture_confirm_values": "SYS、DIA、脈拍がモニターと一致しています。",
