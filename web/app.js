@@ -45,7 +45,6 @@ const state = {
   view: 'dashboard', readings: [], profile: {}, rangeDays: 30,
   mode: 'trend', editing: null, entrySource: 'manual', selectedTags: new Set(),
   entryAuditId: null, entryAuditPending: false, ocrAuditEnabled: false,
-  entryOcrConfirmationRequired: false, entryOcrConfirmed: false,
 };
 const OCR_AUDIT_ENABLED = 'ocrAuditEnabled';
 let ocrAuditUrls = [];
@@ -597,22 +596,7 @@ async function openEntry(existing, source = 'manual', auditId = null) {
   renderTagPicker();
   syncPreview();
   $('add-error').hidden = true;      // a fresh entry carries no scan failure
-  setOcrConfirmation(!existing && source === 'ocr');
   show('add');
-}
-
-function setOcrConfirmation(required, confirmed = false) {
-  state.entryOcrConfirmationRequired = Boolean(required);
-  state.entryOcrConfirmed = Boolean(required && confirmed);
-  $('ocr-confirm').hidden = !required;
-  $('view-add').classList.toggle('ocr-confirm-required', Boolean(required));
-  $('ocr-confirm-check').checked = state.entryOcrConfirmed;
-  $('btn-save').disabled = Boolean(required && !state.entryOcrConfirmed);
-}
-
-function invalidateOcrConfirmation() {
-  if (!state.entryOcrConfirmationRequired || !state.entryOcrConfirmed) return;
-  setOcrConfirmation(true, false);
 }
 
 function renderTagPicker() {
@@ -628,10 +612,6 @@ function renderTagPicker() {
 }
 
 async function saveReading() {
-  if (state.entryOcrConfirmationRequired && !state.entryOcrConfirmed) {
-    toast(t('capture_confirm_required'));
-    return;
-  }
   const systolic = Number($('in-sys').value);
   const diastolic = Number($('in-dia').value);
   if (diastolic >= systolic) { toast(t('validation_error_sys_dia')); return; }
@@ -1571,7 +1551,6 @@ function applyStatic() {
   $('lbl-when').textContent = t('validation_timestamp');
   $('lbl-notes').textContent = t('validation_notes_label');
   $('btn-save').textContent = t('action_save');
-  $('ocr-confirm-text').textContent = t('capture_confirm_values');
   $('btn-cancel').textContent = t('action_cancel');
   $('preview-pressure-unit').textContent = t('unit_mmhg');
   $('preview-pulse-unit').textContent = t('unit_bpm');
@@ -1598,7 +1577,6 @@ function wireStepper(btn) {
     const next = Math.min(hi, Math.max(lo, Number(target.value) + delta));
     if (next === Number(target.value)) return stop();
     target.value = next;
-    invalidateOcrConfirmation();
     syncPreview();
   };
   const tick = () => {
@@ -1665,15 +1643,12 @@ function wire() {
   $('btn-settings-back').addEventListener('click', () => show('dashboard'));
   $('btn-help-back').addEventListener('click', () => show('dashboard'));
   $('btn-save').addEventListener('click', saveReading);
-  $('ocr-confirm-check').addEventListener('change', (event) => {
-    setOcrConfirmation(true, event.target.checked);
-  });
   $('scan-file').addEventListener('change', (e) => {
     if (e.target.files[0]) scanPhoto(e.target.files[0]);
     e.target.value = '';
   });
   for (const id of ['in-sys', 'in-dia', 'in-pulse']) {
-    $(id).addEventListener('input', () => { invalidateOcrConfirmation(); syncPreview(); });
+    $(id).addEventListener('input', syncPreview);
   }
   document.querySelectorAll('.step').forEach(wireStepper);
   // Keep the save bar above the soft keyboard. Sticky positions against the
@@ -1698,7 +1673,6 @@ function wire() {
       if (!Number.isFinite(n) || $(box).value === '') return;   // mid-edit
       const lo = Number($(slider).min), hi = Number($(slider).max);
       $(slider).value = Math.min(hi, Math.max(lo, n));
-      invalidateOcrConfirmation();
       syncPreview();
     });
     // Clamp only on blur, so typing "9" on the way to "95" is not rewritten.
