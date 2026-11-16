@@ -1226,6 +1226,124 @@ const OCR_STATUS = ['capture_status_sending', 'capture_status_reading',
 const OCR_STATUS_AT = [2000, 5000, 8000];
 const OCR_FILL_MS = 8000;
 
+/* The in-app camera, as CaptureScreen: a live preview with a guide box for the
+   monitor's display. The box only helps the user frame the shot -- the whole
+   frame is read, exactly as on Android. Browsers without getUserMedia (or a
+   page outside a secure context) keep the system camera via the file input. */
+const camera = { stream: null, dismiss: null, starting: null };
+
+function cameraSupported() {
+  return !!navigator.mediaDevices?.getUserMedia && window.isSecureContext;
+}
+
+function openScanner() {
+  if (!cameraSupported()) { $('scan-file').click(); return; }
+  if (camera.dismiss) return;
+  camera.dismiss = () => closeCamera();
+  $('cam-denied').hidden = true;
+  $('cam-shutter').disabled = true;
+  $('camera').hidden = false;
+  openOverlay(camera.dismiss);
+  document.addEventListener('visibilitychange', onCameraVisibility);
+  void startCameraStream();
+}
+
+/* The reader scales photos down to 1920px on the long edge, so ask for about
+   that much, in the sensor's own 4:3 so nothing is cropped away; the browser
+   picks the nearest mode the camera offers. */
+async function startCameraStream({ retry = false } = {}) {
+  const starting = navigator.mediaDevices.getUserMedia({
+    audio: false,
+    video: { facingMode: { ideal: 'environment' },
+             width: { ideal: 1920 }, height: { ideal: 1440 } },
+  });
+  camera.starting = starting;
+  let stream;
+  try {
+    stream = await starting;
+  } catch (error) {
+    if (camera.starting !== starting) return;
+    camera.starting = null;
+    console.warn('Camera unavailable', error);
+    // Refused once: say why and offer to ask again. No camera at all, or
+    // refused a second time: hand over to the system picker, which can still
+    // take a photo or choose one. Both rejections arrive well inside the
+    // tap's activation window, so the picker is allowed to open.
+    if (error?.name === 'NotAllowedError' && !retry) {
+      $('cam-denied').hidden = false;
+    } else {
+      const dismiss = camera.dismiss;
+      if (dismiss) { closeOverlay(dismiss); dismiss(); }
+      $('scan-file').click();
+    }
+    return;
+  }
+  // Closed (or restarted) while the permission prompt was up.
+  if (camera.starting !== starting || !camera.dismiss || document.hidden) {
+    stream.getTracks().forEach((track) => track.stop());
+    return;
+  }
+  camera.starting = null;
+  camera.stream = stream;
+  const video = $('cam-video');
+  video.srcObject = stream;
+  try { await video.play(); } catch { /* autoplay attribute covers it */ }
+  $('cam-shutter').disabled = false;
+}
+
+function stopCameraStream() {
+  camera.starting = null;
+  camera.stream?.getTracks().forEach((track) => track.stop());
+  camera.stream = null;
+  $('cam-video').srcObject = null;
+  $('cam-shutter').disabled = true;
+}
+
+/* Let the camera go while the app is in the background, and take it back on
+   return, so the indicator never stays lit behind another app. */
+function onCameraVisibility() {
+  if (!camera.dismiss) return;
+  if (document.hidden) stopCameraStream();
+  else if (!camera.stream && $('cam-denied').hidden) void startCameraStream();
+}
+
+function closeCamera() {
+  if (!camera.dismiss) return;
+  camera.dismiss = null;
+  document.removeEventListener('visibilitychange', onCameraVisibility);
+  stopCameraStream();
+  $('camera').hidden = true;
+}
+
+/* Back from the camera's own controls: close it and wait for its history
+   entry to be unwound, so the next overlay's entry is not popped with it. */
+function leaveCamera() {
+  const dismiss = camera.dismiss;
+  if (!dismiss) return Promise.resolve();
+  const unwound = new Promise((resolve) => {
+    window.addEventListener('popstate', () => resolve(), { once: true });
+  });
+  closeOverlay(dismiss);
+  dismiss();
+  return unwound;
+}
+
+async function captureFrame() {
+  const video = $('cam-video');
+  if (!camera.stream || !video.videoWidth) return;
+  $('cam-shutter').disabled = true;
+  const canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+  if (!blob) { $('cam-shutter').disabled = false; return; }
+  const now = Date.now();
+  const file = new File([blob], `bp_capture_${now}.jpg`, { type: 'image/jpeg', lastModified: now });
+  await leaveCamera();
+  scanPhoto(file);
+}
+
 async function scanPhoto(file) {
   if (state.entryAuditPending) await discardEntryAudit('retaken');
   const auditEnabled = state.ocrAuditEnabled;
@@ -1510,7 +1628,21 @@ function wire() {
   $('fab-scan').innerHTML = icon('camera');
   $('fab-scan').title = t('dashboard_cd_scan');
   $('fab-add').addEventListener('click', () => openEntry(null));
-  $('fab-scan').addEventListener('click', () => $('scan-file').click());
+  $('fab-scan').addEventListener('click', openScanner);
+  $('cam-back').innerHTML = icon('back');
+  $('cam-back').setAttribute('aria-label', t('action_back'));
+  $('cam-back').title = t('action_back');
+  $('cam-back').addEventListener('click', () => { void leaveCamera(); });
+  $('cam-shutter').innerHTML = icon('camera');
+  $('cam-shutter').setAttribute('aria-label', t('capture_cd_capture'));
+  $('cam-shutter').title = t('capture_cd_capture');
+  $('cam-shutter').addEventListener('click', () => { void captureFrame(); });
+  $('cam-denied-text').textContent = t('capture_permission_rationale');
+  $('cam-retry').textContent = t('capture_grant_permission');
+  $('cam-retry').addEventListener('click', () => {
+    $('cam-denied').hidden = true;
+    void startCameraStream({ retry: true });
+  });
   $('s-file-global').addEventListener('change', (e) => {
     if (e.target.files[0]) importFile(e.target.files[0]);
     e.target.value = '';
@@ -1527,7 +1659,7 @@ function wire() {
     }
   });
   $('btn-add-back').addEventListener('click', () => show('dashboard'));
-  $('add-retake').addEventListener('click', () => $('scan-file').click());
+  $('add-retake').addEventListener('click', openScanner);
   $('btn-cancel').addEventListener('click', () => show('dashboard'));
   $('btn-profile-back').addEventListener('click', () => show('dashboard'));
   $('btn-settings-back').addEventListener('click', () => show('dashboard'));

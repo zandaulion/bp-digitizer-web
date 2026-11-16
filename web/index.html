@@ -191,6 +191,18 @@
 
 <input type="file" id="s-file-global" accept="application/json,text/csv,.json,.csv" hidden>
 <input type="file" id="backup-file" accept=".hbp,application/json" hidden>
+<!-- In-app camera (CaptureScreen): a live preview with the guide box the
+     monitor's display should be lined up in. -->
+<div class="camera" id="camera" hidden>
+  <video id="cam-video" autoplay playsinline muted></video>
+  <div class="cam-guide" aria-hidden="true"></div>
+  <button class="cam-back" id="cam-back" type="button"></button>
+  <div class="cam-denied" id="cam-denied" hidden>
+    <p id="cam-denied-text"></p>
+    <button class="btn" id="cam-retry" type="button"></button>
+  </div>
+  <button class="fab cam-shutter" id="cam-shutter" type="button"></button>
+</div>
 <!-- Scan progress: the photo stays on screen while local OCR is running. -->
 <div class="scanning" id="scanning" hidden>
   <img id="scan-shot" alt="">

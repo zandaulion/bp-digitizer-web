@@ -318,6 +318,26 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .scan-err span{flex:1;min-width:140px}
 .scan-err .btn{flex:none}
 
+/* --- in-app camera (CaptureScreen) --------------------------------------- */
+.camera[hidden],.cam-denied[hidden]{display:none}
+.camera{position:fixed;inset:0;z-index:55;background:#000;overflow:hidden}
+.camera video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+/* fillMaxWidth(0.8f) x fillMaxHeight(0.4f), 2dp white at 80%, 12dp corners. */
+.cam-guide{position:absolute;left:10%;top:30%;width:80%;height:40%;
+  border:2px solid rgba(255,255,255,.8);border-radius:12px;pointer-events:none}
+.cam-back{position:absolute;top:calc(env(safe-area-inset-top) + 8px);left:8px;
+  width:48px;height:48px;display:grid;place-items:center;background:none;border:0;
+  color:#fff;cursor:pointer}
+.cam-back svg{width:24px;height:24px}
+.camera .cam-shutter{position:absolute;left:50%;transform:translateX(-50%);
+  bottom:calc(env(safe-area-inset-bottom) + 32px);width:72px;height:72px}
+.cam-shutter:disabled{opacity:.6}
+.cam-denied{position:absolute;inset:0;display:grid;place-content:center;gap:16px;
+  justify-items:center;padding:24px;color:#fff;text-align:center}
+.cam-denied p{margin:0}
+/* PermissionRationale replaces the viewfinder rather than sitting on top of it. */
+.camera:has(.cam-denied:not([hidden])) :is(.cam-guide,.cam-shutter){display:none}
+
 /* --- scan progress overlay (ProcessingOverlay) --------------------------- */
 .scanning[hidden]{display:none}
 .scanning{position:fixed;inset:0;z-index:60;display:grid;place-items:center;background:#000}
