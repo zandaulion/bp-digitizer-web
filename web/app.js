@@ -1228,9 +1228,8 @@ const OCR_FILL_MS = 8000;
 
 /* The in-app camera, as CaptureScreen: a live preview with a guide box for the
    monitor's display. The box only helps the user frame the shot -- the whole
-   frame is read, exactly as on Android. A gallery button beside the shutter
-   reads a photo already taken. Browsers without getUserMedia (or a page
-   outside a secure context) keep the system camera via the file input. */
+   frame is read, exactly as on Android. Browsers without getUserMedia (or a
+   page outside a secure context) keep the system camera via the file input. */
 const camera = { stream: null, dismiss: null, starting: null };
 
 function cameraSupported() {
@@ -1638,18 +1637,6 @@ function wire() {
   $('cam-shutter').setAttribute('aria-label', t('capture_cd_capture'));
   $('cam-shutter').title = t('capture_cd_capture');
   $('cam-shutter').addEventListener('click', () => { void captureFrame(); });
-  $('cam-gallery').innerHTML = icon('gallery');
-  $('cam-gallery').setAttribute('aria-label', t('capture_cd_gallery'));
-  $('cam-gallery').title = t('capture_cd_gallery');
-  $('cam-gallery').addEventListener('click', () => $('gallery-file').click());
-  // A photo already taken: leave the camera and read it like a fresh capture.
-  $('gallery-file').addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    e.target.value = '';
-    if (!file) return;
-    await leaveCamera();
-    scanPhoto(file);
-  });
   $('cam-denied-text').textContent = t('capture_permission_rationale');
   $('cam-retry').textContent = t('capture_grant_permission');
   $('cam-retry').addEventListener('click', () => {
